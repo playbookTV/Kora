@@ -2,75 +2,103 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Monorepo Structure
+
+Kora is a voice-first personal finance app. This monorepo contains:
+
+- **kora-app/** - Expo/React Native mobile app
+- **kora-backend/** - Fastify API server
+
 ## Build and Development Commands
 
+### Root Commands (npm workspaces)
 ```bash
-npm install          # Install dependencies
-npx expo start       # Start development server (press i for iOS, a for Android, w for web)
-npm run ios          # Start iOS simulator directly
-npm run android      # Start Android emulator directly
-npm run web          # Start web version directly
-npm run lint         # Run ESLint
+npm install              # Install all workspace dependencies
+npm run lint             # Lint all workspaces
+```
+
+### Mobile App (kora-app/)
+```bash
+npm run app:start        # Start Expo dev server
+npm run app:ios          # Start iOS simulator
+npm run app:android      # Start Android emulator
+npm run app:web          # Start web version
+npm run app:lint         # Run ESLint
+```
+
+### Backend (kora-backend/)
+```bash
+npm run backend:dev      # Start dev server with hot reload
+npm run backend:build    # Build for production
+npm run backend:start    # Start production server
+npm run backend:lint     # Type-check
 ```
 
 ## Architecture Overview
 
-Kora is a voice-first personal finance app built with Expo (SDK 54) and React Native. The app helps users track spending through conversational AI interactions with a "Safe Spend" concept.
+### Mobile App (kora-app/)
 
-### Routing Structure
+Built with Expo (SDK 54) and React Native. Uses Expo Router for file-based routing.
 
-Uses Expo Router with file-based routing. Root layout (`app/_layout.tsx`) handles auth-gating based on `hasOnboarded` state:
-
-- `app/index.tsx` - Home screen: Safe Spend display, transaction list, voice mic button
-- `app/onboarding/` - Multi-step conversational onboarding flow
-- `app/voice-session.tsx` - Modal for voice interactions
-- `app/add-transaction.tsx` - Manual transaction entry modal
+**Routing:**
+- `app/index.tsx` - Home: Safe Spend display, transactions, voice button
+- `app/onboarding/` - Conversational onboarding flow
+- `app/voice-session.tsx` - Voice interaction modal
+- `app/add-transaction.tsx` - Manual transaction entry
 - `app/settings/` - User settings
 
-### State Management
+**State Management:** Zustand with MMKV persistence
+- `store/user-store.ts` - User profile, income, payday, fixed expenses
+- `store/transaction-store.ts` - Transactions and Safe Spend calculations
 
-Uses **Zustand** with **MMKV** persistence:
+**Design System:** react-native-ui-lib (initialized in `constants/design-system.ts`)
 
-- `store/user-store.ts` - User profile: income, payday, fixed expenses, onboarding status
-- `store/transaction-store.ts` - Transactions and computed Safe Spend values
+**Path Aliases:** `@/` maps to kora-app root
 
-Key pattern: `useUserStore.getState()` can be called from transaction store to access user data for Safe Spend calculations.
+### Backend (kora-backend/)
 
-### AI Services (`services/`)
+Built with Fastify and TypeScript.
 
-- `ai-service.ts` - Orchestrates voice interactions:
-  - **Whisper** (OpenAI) for speech-to-text
-  - **Mistral** for LLM responses (onboarding + conversation flows)
-  - **ElevenLabs** for text-to-speech (falls back to Expo Speech)
-- `kora-onboarding-prompt.ts` - System prompts for onboarding extraction
-- `kora-conversation-prompt.ts` - Intent classification and response prompts
-- `finance-engine.ts` - Core calculations: `calculateDaysToPayday()`, `calculateSafeSpend()`
+**Structure:**
+- `src/routes/` - API endpoints (auth, users, transactions, AI)
+- `src/services/` - Business logic
+- `src/services/ai/` - LangChain AI orchestration
+- `src/middleware/` - Auth & error handling
+- `src/schemas/` - Zod validation
+- `supabase/migrations/` - Database migrations
 
-### Design System
+**Key Services:**
+- Supabase (PostgreSQL + Auth)
+- OpenAI Whisper (speech-to-text)
+- Mistral AI (LLM responses)
+- ElevenLabs (text-to-speech)
 
-Uses **react-native-ui-lib**. System initialized in `constants/design-system.ts`:
-- Colors: primary (#1E1E1E), status colors (success/warning/error)
-- Typography: h1-h3, body, small
-- Spacings: page, card, s1-s10
+**Deployment:** Railway (uses Dockerfile)
 
-Components use ui-lib modifiers like `<Text h1 textDefault>` and `<View padding-page>`.
+## Environment Variables
 
-### Environment Variables
+### kora-app/.env
+```
+EXPO_PUBLIC_OPENAI_API_KEY=
+EXPO_PUBLIC_MISTRAL_API_KEY=
+EXPO_PUBLIC_ELEVENLABS_API_KEY=
+```
 
-Required in `.env` (prefixed with `EXPO_PUBLIC_`):
-- `EXPO_PUBLIC_OPENAI_API_KEY` - Whisper transcription
-- `EXPO_PUBLIC_MISTRAL_API_KEY` - LLM responses
-- `EXPO_PUBLIC_ELEVENLABS_API_KEY` - Voice synthesis
-
-### Path Aliases
-
-The `@/` alias maps to the project root (e.g., `@/components/`, `@/store/`)
+### kora-backend/.env
+```
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+OPENAI_API_KEY=
+MISTRAL_API_KEY=
+ELEVENLABS_API_KEY=
+```
 
 ## Codacy Integration
 
 When using Codacy's MCP Server tools:
 - provider: `gh`
 - organization: `playbookTV`
-- repository: `kora-app`
+- repository: `kora`
 
 Run `codacy_cli_analyze` after file edits and dependency changes (with `tool: "trivy"` for security scanning).

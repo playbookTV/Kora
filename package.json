@@ -1,0 +1,37 @@
+{
+  "name": "kora",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kora - Voice-first personal finance app monorepo",
+  "workspaces": [
+    "kora-app",
+    "kora-backend"
+  ],
+  "scripts": {
+    "app:start": "npm run start --workspace=kora-app",
+    "app:ios": "npm run ios --workspace=kora-app",
+    "app:android": "npm run android --workspace=kora-app",
+    "app:web": "npm run web --workspace=kora-app",
+    "app:lint": "npm run lint --workspace=kora-app",
+    "backend:dev": "npm run dev --workspace=kora-backend",
+    "backend:build": "npm run build --workspace=kora-backend",
+    "backend:start": "npm run start --workspace=kora-backend",
+    "backend:lint": "npm run lint --workspace=kora-backend",
+    "install:all": "npm install",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/playbookTV/kora.git"
+  },
+  "keywords": ["finance", "ai", "voice", "expo", "react-native", "fastify"],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/playbookTV/kora/issues"
+  },
+  "homepage": "https://github.com/playbookTV/kora#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
