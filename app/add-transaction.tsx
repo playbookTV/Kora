@@ -1,10 +1,7 @@
-
 import React, { useState } from 'react';
-import { StyleSheet, TextInput } from 'react-native';
-import { View, Text, TouchableOpacity, Colors } from 'react-native-ui-lib';
+import { View, Text, TextField, Button, Colors } from 'react-native-ui-lib';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTransactionStore } from '../store/transaction-store';
@@ -18,84 +15,122 @@ export default function AddTransactionScreen() {
   const [category, setCategory] = useState('');
 
   const handleSave = () => {
-      const value = parseFloat(amount);
-      if (isNaN(value) || value <= 0) return;
-      if (!description.trim()) return;
+    const value = parseFloat(amount);
+    if (isNaN(value) || value <= 0) return;
+    if (!description.trim()) return;
 
-      addTransaction(value, description, category || 'Manual');
-      recalculateSafeSpend();
-      router.back();
+    addTransaction(value, description, category || 'Manual');
+    recalculateSafeSpend();
+    router.back();
   };
+
+  const isValid = parseFloat(amount) > 0 && description.trim().length > 0;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.screenBG }}>
-       <StatusBar style="dark" />
-       
-       <View padding-page>
-           {/* Header */}
-           <View row spread centerV marginB-s6>
-               <TouchableOpacity onPress={() => router.back()}>
-                   <Text textMuted>Cancel</Text>
-               </TouchableOpacity>
-               <Text h3>Add Expense</Text>
-               <TouchableOpacity onPress={handleSave}>
-                   <Text primary style={{ fontWeight: 'bold' }}>Save</Text>
-               </TouchableOpacity>
-           </View>
+      <StatusBar style="dark" />
 
-           {/* Form */}
-           <View marginV-s4>
-               <Text small textMuted marginB-s1>AMOUNT</Text>
-               <TextInput
-                   style={styles.inputLarge}
-                   placeholder="0"
-                   keyboardType="numeric"
-                   autoFocus
-                   value={amount}
-                   onChangeText={setAmount}
-                   placeholderTextColor={Colors.grey40}
-               />
-           </View>
+      <View padding-page flex>
+        {/* Header */}
+        <View row spread centerV marginB-s6>
+          <Button
+            link
+            label="Cancel"
+            color={Colors.textMuted}
+            onPress={() => router.back()}
+          />
+          <Text h3 textDefault>Add Expense</Text>
+          <Button
+            link
+            label="Save"
+            color={isValid ? Colors.primary : Colors.textDisabled}
+            labelStyle={{ fontWeight: '600' }}
+            onPress={handleSave}
+            disabled={!isValid}
+          />
+        </View>
 
-           <View marginV-s4>
-               <Text small textMuted marginB-s1>DESCRIPTION</Text>
-               <TextInput
-                   style={styles.input}
-                   placeholder="What did you buy?"
-                   value={description}
-                   onChangeText={setDescription}
-                   placeholderTextColor={Colors.grey40}
-               />
-           </View>
+        {/* Form */}
+        <View marginB-s6>
+          <TextField
+            placeholder="0"
+            floatingPlaceholder
+            floatOnFocus
+            label="Amount (₦)"
+            labelStyle={{ color: Colors.textMuted }}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+            autoFocus
+            fieldStyle={{
+              borderBottomWidth: 1,
+              borderBottomColor: Colors.border,
+              paddingBottom: 8,
+            }}
+            style={{
+              fontSize: 48,
+              fontWeight: '700',
+              color: Colors.textDefault,
+            }}
+          />
+        </View>
 
-           <View marginV-s4>
-               <Text small textMuted marginB-s1>CATEGORY (OPTIONAL)</Text>
-               <TextInput
-                   style={styles.input}
-                   placeholder="Food, Transport, etc."
-                   value={category}
-                   onChangeText={setCategory}
-                   placeholderTextColor={Colors.grey40}
-               />
-           </View>
+        <View marginB-s6>
+          <TextField
+            placeholder="What did you buy?"
+            floatingPlaceholder
+            floatOnFocus
+            label="Description"
+            labelStyle={{ color: Colors.textMuted }}
+            value={description}
+            onChangeText={setDescription}
+            fieldStyle={{
+              borderBottomWidth: 1,
+              borderBottomColor: Colors.border,
+              paddingBottom: 8,
+            }}
+            style={{
+              fontSize: 18,
+              color: Colors.textDefault,
+            }}
+          />
+        </View>
 
-       </View>
+        <View marginB-s6>
+          <TextField
+            placeholder="Food, Transport, etc."
+            floatingPlaceholder
+            floatOnFocus
+            label="Category (Optional)"
+            labelStyle={{ color: Colors.textMuted }}
+            value={category}
+            onChangeText={setCategory}
+            fieldStyle={{
+              borderBottomWidth: 1,
+              borderBottomColor: Colors.border,
+              paddingBottom: 8,
+            }}
+            style={{
+              fontSize: 18,
+              color: Colors.textDefault,
+            }}
+          />
+        </View>
+
+        {/* Spacer */}
+        <View flex />
+
+        {/* Save Button */}
+        <Button
+          label="Save Expense"
+          backgroundColor={isValid ? Colors.primary : Colors.textDisabled}
+          color={Colors.textInverse}
+          borderRadius={20}
+          disabled={!isValid}
+          onPress={handleSave}
+          marginB-s4
+        />
+      </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-    inputLarge: {
-        fontSize: 48,
-        fontWeight: 'bold',
-        color: Colors.textDefault,
-        paddingVertical: 10,
-    },
-    input: {
-        fontSize: 18,
-        color: Colors.textDefault,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.grey60,
-        paddingVertical: 10,
-    }
-});

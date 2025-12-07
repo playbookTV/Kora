@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { mmkvStorage, useUserStore } from './user-store'; // Reuse MMKV instance
 import { FinanceEngine } from '../services/finance-engine';
 
-interface Transaction {
+export interface Transaction {
     id: string;
     amount: number;
     category: string;
