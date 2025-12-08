@@ -119,7 +119,7 @@ apiClient.interceptors.response.use(
           }
           return apiClient(originalRequest);
         }
-      } catch (refreshError) {
+      } catch {
         // Refresh failed - clear tokens (user needs to re-authenticate)
         await TokenStorage.clearTokens();
         // Could emit an event here for the app to handle

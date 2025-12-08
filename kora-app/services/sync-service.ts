@@ -193,7 +193,7 @@ export const SyncService = {
   async fullPull(): Promise<SyncResult> {
     try {
       const profile = await this.pullProfile();
-      const expenses = await this.pullExpenses();
+      await this.pullExpenses();
       const transactions = await this.pullTransactions();
 
       // Recalculate safe spend after sync

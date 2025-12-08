@@ -122,14 +122,12 @@ export const useInsightsStore = create<InsightsState>()(
 
         // Generate AI observations based on data
         const aiObservations = generateObservations({
-          totalSpent,
           avgDailySpend,
           categoryBreakdown,
           pattern,
           income,
           savingsRate,
           currencySymbol,
-          daysElapsed,
         });
 
         const insight: MonthlyInsight = {
@@ -184,25 +182,21 @@ export const useInsightsStore = create<InsightsState>()(
  * Per spec: "AI insights" - what Kora notices
  */
 function generateObservations(data: {
-  totalSpent: number;
   avgDailySpend: number;
   categoryBreakdown: CategoryBreakdown[];
   pattern: ReturnType<typeof usePatternStore.getState>['pattern'];
   income: number;
   savingsRate: number;
   currencySymbol: string;
-  daysElapsed: number;
 }): string[] {
   const observations: string[] = [];
   const {
-    totalSpent,
     avgDailySpend,
     categoryBreakdown,
     pattern,
     income,
     savingsRate,
     currencySymbol,
-    daysElapsed,
   } = data;
 
   // Observation 1: Top spending category

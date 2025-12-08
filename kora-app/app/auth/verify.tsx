@@ -7,8 +7,8 @@
  * Follows Kora design principles: minimal UI, clear feedback.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TextField, Button, Colors, TouchableOpacity } from 'react-native-ui-lib';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, Button, Colors, TouchableOpacity } from 'react-native-ui-lib';
 import { TextInput, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,6 +58,7 @@ export default function OTPVerifyScreen() {
     if (otp.length === OTP_LENGTH) {
       handleVerify();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otp]);
 
   // Handle OTP input change

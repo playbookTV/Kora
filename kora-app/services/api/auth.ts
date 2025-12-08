@@ -93,7 +93,7 @@ export const AuthAPI = {
         throw new Error(response.data.error || 'OTP verification failed');
       }
 
-      const { session, user } = response.data.data;
+      const { session } = response.data.data;
 
       // Store tokens securely
       await TokenStorage.setTokens(session.access_token, session.refresh_token);

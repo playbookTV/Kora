@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthState>()(
           await AuthAPI.login(phone);
           set({ pendingPhone: phone, otpSent: true, isLoading: false });
           return true;
-        } catch (loginError) {
+        } catch {
           // If login fails, try signup (new user)
           try {
             await AuthAPI.signup(phone);
