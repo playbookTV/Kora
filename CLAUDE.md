@@ -102,3 +102,11 @@ When using Codacy's MCP Server tools:
 - repository: `kora`
 
 Run `codacy_cli_analyze` after file edits and dependency changes (with `tool: "trivy"` for security scanning).
+
+## Database Setup
+
+Run SQL migrations in Supabase SQL editor in order:
+1. `kora-backend/supabase/migrations/001_profiles.sql`
+2. `kora-backend/supabase/migrations/002_fixed_expenses.sql`
+3. `kora-backend/supabase/migrations/003_transactions.sql`
+4. `kora-backend/supabase/migrations/004_conversation_history.sql`

@@ -18,13 +18,21 @@
     "backend:start": "npm run start --workspace=kora-backend",
     "backend:lint": "npm run lint --workspace=kora-backend",
     "install:all": "npm install",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/playbookTV/kora.git"
   },
-  "keywords": ["finance", "ai", "voice", "expo", "react-native", "fastify"],
+  "keywords": [
+    "finance",
+    "ai",
+    "voice",
+    "expo",
+    "react-native",
+    "fastify"
+  ],
   "author": "",
   "license": "ISC",
   "bugs": {
@@ -33,5 +41,17 @@
   "homepage": "https://github.com/playbookTV/kora#readme",
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7"
+  },
+  "lint-staged": {
+    "kora-app/**/*.{ts,tsx}": [
+      "npx eslint --fix --config kora-app/eslint.config.js"
+    ],
+    "kora-backend/**/*.ts": [
+      "npx tsc --noEmit --skipLibCheck --project kora-backend/tsconfig.json"
+    ]
   }
 }
