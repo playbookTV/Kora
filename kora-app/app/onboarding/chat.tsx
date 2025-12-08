@@ -12,15 +12,23 @@ import { BorderRadius, Shadows } from '../../constants/design-system';
 
 type OnboardingStep = 'INTRO' | 'INCOME' | 'EXPENSES' | 'BALANCE_PAYDAY' | 'COMPLETE';
 
+interface CollectedData {
+  income?: { amount: number; frequency: string; payday?: number };
+  expenses?: { name: string; amount: number; due_day?: number }[];
+  balance?: number;
+  savingsGoal?: number;
+}
+
 const MicOnIcon = () => <Feather name="mic" size={32} color={Colors.textInverse} />;
 const MicOffIcon = () => <Feather name="mic-off" size={32} color={Colors.textInverse} />;
 
 export default function OnboardingChat() {
   const router = useRouter();
-  const { setIncome, addFixedExpense, setPayday, completeOnboarding } = useUserStore();
+  const { setIncome, addFixedExpense, setPayday, completeOnboarding, currency } = useUserStore();
   const { setBalance, recalculateSafeSpend } = useTransactionStore();
 
   const [step, setStep] = useState<OnboardingStep>('INTRO');
+  const [collectedData, setCollectedData] = useState<CollectedData>({});
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [koraText, setKoraText] = useState(
@@ -74,7 +82,12 @@ export default function OnboardingChat() {
   const processUserAudio = async (uri: string) => {
     try {
       const text = await AIService.transcribe(uri);
-      const response = await AIService.generateResponse(text, { step });
+      const response = await AIService.generateResponse(text, {
+        isOnboarding: true,
+        step,
+        currency: currency || 'NGN',
+        collectedData,
+      });
 
       if (response.data) {
         handleDataExtraction(response.data);
@@ -93,22 +106,49 @@ export default function OnboardingChat() {
   const handleDataExtraction = (data: any) => {
     switch (step) {
       case 'INCOME':
-        if (data.amount) {
-          setIncome(data.amount);
+        // LLM returns: extracted.income.amount, extracted.income.frequency, extracted.income.payday
+        if (data.income?.amount) {
+          setIncome(data.income.amount);
+          // Also extract payday if provided in this step
+          if (data.income.payday) {
+            setPayday(data.income.payday);
+          }
+          // Update collected data for context persistence
+          setCollectedData(prev => ({
+            ...prev,
+            income: {
+              amount: data.income.amount,
+              frequency: data.income.frequency || 'monthly',
+              payday: data.income.payday,
+            },
+          }));
           setStep('EXPENSES');
         }
         break;
       case 'EXPENSES':
-        if (data.fixed_expenses && Array.isArray(data.fixed_expenses)) {
-          data.fixed_expenses.forEach((ex: any) => addFixedExpense(ex.name, ex.amount));
+        // LLM returns: extracted.expenses (array)
+        if (data.expenses && Array.isArray(data.expenses)) {
+          data.expenses.forEach((ex: any) => addFixedExpense(ex.name, ex.amount, ex.due_day));
+          // Update collected data - accumulate expenses
+          setCollectedData(prev => ({
+            ...prev,
+            expenses: [...(prev.expenses || []), ...data.expenses],
+          }));
           setStep('BALANCE_PAYDAY');
         }
         break;
       case 'BALANCE_PAYDAY':
-        if (data.balance) setBalance(data.balance);
-        if (data.payday) setPayday(data.payday);
+        // LLM returns: extracted.balance, extracted.savingsGoal
+        if (data.balance) {
+          setBalance(data.balance);
+          setCollectedData(prev => ({ ...prev, balance: data.balance }));
+        }
+        if (data.savingsGoal) {
+          setCollectedData(prev => ({ ...prev, savingsGoal: data.savingsGoal }));
+        }
 
-        if (data.balance && data.payday) {
+        // Complete when we have balance (payday was collected in INCOME step)
+        if (data.balance && collectedData.income?.payday) {
           setStep('COMPLETE');
           recalculateSafeSpend();
           completeOnboarding();

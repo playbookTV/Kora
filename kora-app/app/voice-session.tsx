@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTransactionStore } from '../store/transaction-store';
+import { useUserStore } from '../store/user-store';
 import { AIService } from '../services/ai-service';
 import { BorderRadius, Shadows } from '../constants/design-system';
 
@@ -14,7 +15,8 @@ const MicOffIcon = () => <Feather name="mic-off" size={32} color={Colors.textInv
 
 export default function VoiceSession() {
   const router = useRouter();
-  const { updateSafeSpend, recalculateSafeSpend, currentBalance, daysToPayday } = useTransactionStore();
+  const { updateSafeSpend, recalculateSafeSpend, currentBalance, daysToPayday, safeSpendToday, transactions } = useTransactionStore();
+  const { income, payday, fixedExpenses, currency, savingsGoal, name } = useUserStore();
 
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -59,10 +61,40 @@ export default function VoiceSession() {
     try {
       const text = await AIService.transcribe(uri);
 
+      // Calculate today's spending from transactions
+      const today = new Date().toISOString().split('T')[0];
+      const spentToday = transactions
+        .filter(t => t.date.startsWith(today))
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Calculate total fixed expenses
+      const totalFixedExpenses = fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+      // Calculate flexible remaining (income - fixed expenses - spent this month)
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      const spentThisMonth = transactions
+        .filter(t => new Date(t.date) >= monthStart)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const flexibleRemaining = (income || 0) - totalFixedExpenses - spentThisMonth;
+
       const context = {
-        mode: 'GENERAL',
-        currentBalance,
-        daysToPayday,
+        currency: currency || 'NGN',
+        userProfile: {
+          name: name || undefined,
+          income: income || 0,
+          payday: payday || 1,
+          fixedExpenses: totalFixedExpenses,
+          currentBalance: currentBalance || 0,
+          savingsGoal: savingsGoal || undefined,
+        },
+        financialState: {
+          safeSpendToday: safeSpendToday || 0,
+          daysToPayday: daysToPayday || 1,
+          spentToday,
+          upcomingBills: 0, // TODO: Calculate from fixed expenses with due dates
+          flexibleRemaining,
+        },
       };
 
       const response = await AIService.generateResponse(text, context);

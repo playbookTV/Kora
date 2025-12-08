@@ -1,5 +1,5 @@
 import axios from 'axios';
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { Buffer } from 'buffer'; // Requires polyfill installation
 import { getOnboardingPrompt } from './kora-onboarding-prompt';
@@ -102,7 +102,7 @@ export class AIService {
         try {
             // 1. Classify Intent
             const intentPrompt = INTENT_CLASSIFIER_PROMPT.replace('{message}', userText);
-            const classification = await this.callLLM(intentPrompt, "Analyze this message.");
+            const classification = await this.callLLM(intentPrompt, userText);
 
             const intent = classification.intent || 'GENERAL';
             console.log('Classified Intent:', intent, classification);
@@ -170,7 +170,7 @@ export class AIService {
         const contentStr = response.data.choices[0].message.content;
         try {
             return JSON.parse(contentStr);
-        } catch (e) {
+        } catch {
             console.error("Failed to parse LLM JSON response:", contentStr);
             throw new Error("Invalid JSON from LLM");
         }
@@ -199,14 +199,12 @@ export class AIService {
                 }
             );
 
-            // Save to temporary file
-            const fileUri = (FileSystem.documentDirectory || '') + 'speech.mp3';
+            // Save to temporary file using new expo-file-system API
+            const speechFile = new File(Paths.cache, 'speech.mp3');
             const base64 = Buffer.from(response.data, 'binary').toString('base64');
-            await FileSystem.writeAsStringAsync(fileUri, base64, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
+            speechFile.write(base64, { encoding: 'base64' });
 
-            return fileUri;
+            return speechFile.uri;
 
         } catch (error) {
             console.log('ElevenLabs failed, using fallback:', error);
