@@ -13,11 +13,11 @@ export const mmkvStorage = {
     removeItem: (name: string) => storage.delete(name),
 };
 
-interface FixedExpense {
-    id: string;
+export interface FixedExpense {
+    id?: string;
     name: string;
     amount: number;
-    dueDay: number | null; // 1-31
+    dueDay?: number | null; // 1-31
 }
 
 interface UserState {
@@ -32,11 +32,15 @@ interface UserState {
 
     // Actions
     completeOnboarding: () => void;
+    setHasOnboarded: (value: boolean) => void;
+    setName: (name: string) => void;
     setIncome: (amount: number) => void;
     setPayday: (day: number) => void;
     setCurrentBalance: (amount: number) => void;
     setSavingsGoal: (amount: number) => void;
+    setCurrency: (currency: 'NGN' | 'GBP') => void;
     addFixedExpense: (name: string, amount: number, dueDay?: number) => void;
+    setFixedExpenses: (expenses: FixedExpense[]) => void;
     resetUser: () => void;
 }
 
@@ -53,15 +57,28 @@ export const useUserStore = create<UserState>()(
             currency: 'NGN',
 
             completeOnboarding: () => set({ hasOnboarded: true }),
+            setHasOnboarded: (value) => set({ hasOnboarded: value }),
+            setName: (name) => set({ name }),
             setIncome: (amount) => set({ income: amount }),
             setPayday: (day) => set({ payday: day }),
             setCurrentBalance: (amount) => set({ currentBalance: amount }),
             setSavingsGoal: (amount) => set({ savingsGoal: amount }),
+            setCurrency: (currency) => set({ currency }),
             addFixedExpense: (name, amount, dueDay: number | null = null) =>
                 set((state) => ({
                     fixedExpenses: [...state.fixedExpenses, { id: Math.random().toString(), name, amount, dueDay }]
                 })),
-            resetUser: () => set({ hasOnboarded: false, income: null, payday: null, currentBalance: null, savingsGoal: null, fixedExpenses: [] }),
+            setFixedExpenses: (expenses) => set({ fixedExpenses: expenses }),
+            resetUser: () => set({
+                hasOnboarded: false,
+                name: null,
+                income: null,
+                payday: null,
+                currentBalance: null,
+                savingsGoal: null,
+                fixedExpenses: [],
+                currency: 'NGN'
+            }),
         }),
         {
             name: 'user-storage',

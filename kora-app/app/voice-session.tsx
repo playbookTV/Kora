@@ -10,12 +10,15 @@ import { useUserStore } from '../store/user-store';
 import { AIService } from '../services/ai-service';
 import { BorderRadius, Shadows } from '../constants/design-system';
 
+// Intent types from conversation prompts
+type Intent = 'SPEND_DECISION' | 'SAFE_SPEND_CHECK' | 'EMOTIONAL' | 'POST_SPEND' | 'GENERAL';
+
 const MicOnIcon = () => <Feather name="mic" size={32} color={Colors.textInverse} />;
 const MicOffIcon = () => <Feather name="mic-off" size={32} color={Colors.textInverse} />;
 
 export default function VoiceSession() {
   const router = useRouter();
-  const { updateSafeSpend, recalculateSafeSpend, currentBalance, daysToPayday, safeSpendToday, transactions } = useTransactionStore();
+  const { updateSafeSpend, recalculateSafeSpend, currentBalance, daysToPayday, safeSpendToday, transactions, addTransaction } = useTransactionStore();
   const { income, payday, fixedExpenses, currency, savingsGoal, name } = useUserStore();
 
   const [isRecording, setIsRecording] = useState(false);
@@ -99,7 +102,22 @@ export default function VoiceSession() {
 
       const response = await AIService.generateResponse(text, context);
 
-      if (response.data) {
+      // Handle different intents based on response action
+      const intent = response.action as Intent;
+
+      if (intent === 'POST_SPEND' && response.data?.logged) {
+        // Voice spend logging - create transaction from logged data
+        const logged = response.data.logged as { amount: number; category: string };
+        if (logged.amount && logged.amount > 0) {
+          addTransaction(
+            logged.amount,
+            `Voice logged: ${logged.category || 'expense'}`,
+            logged.category || 'Voice Logged'
+          );
+          // Recalculate safe spend after adding transaction
+          recalculateSafeSpend();
+        }
+      } else if (response.data) {
         if (response.data.safeSpend) {
           updateSafeSpend(response.data.safeSpend, response.data.days || daysToPayday);
         } else if (response.data.action === 'SAFE_SPEND_UPDATE') {
