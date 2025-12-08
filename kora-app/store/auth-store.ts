@@ -1,34 +1,18 @@
 /**
  * Authentication Store
  *
- * Manages authentication state using Zustand with MMKV persistence.
- * Handles login, logout, and session management.
+ * Manages authentication state using Zustand with AsyncStorage persistence.
+ * Handles login, signup, logout, and session management.
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { MMKV } from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthAPI, TokenStorage } from '@/services/api';
 import type { AuthUser } from '@/services/api';
 
-// MMKV storage instance for auth
-const authStorage = new MMKV({ id: 'kora-auth-storage' });
-
-// Zustand storage adapter for MMKV
-const zustandAuthStorage = {
-  getItem: (name: string) => {
-    const value = authStorage.getString(name);
-    return value ?? null;
-  },
-  setItem: (name: string, value: string) => {
-    authStorage.set(name, value);
-  },
-  removeItem: (name: string) => {
-    authStorage.delete(name);
-  },
-};
-
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
+export type AuthMode = 'login' | 'signup';
 
 interface AuthState {
   // State
@@ -37,13 +21,15 @@ interface AuthState {
   error: string | null;
   isLoading: boolean;
 
-  // Phone verification state
-  pendingPhone: string | null;
-  otpSent: boolean;
+  // Auth flow state
+  pendingEmail: string | null;
+  authMode: AuthMode;
 
   // Actions
-  sendOTP: (phone: string) => Promise<boolean>;
-  verifyOTP: (code: string) => Promise<boolean>;
+  setAuthMode: (mode: AuthMode) => void;
+  setPendingEmail: (email: string) => void;
+  login: (email: string, password: string) => Promise<boolean>;
+  signup: (email: string, password: string, name?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   clearError: () => void;
@@ -55,65 +41,68 @@ const initialState = {
   status: 'idle' as AuthStatus,
   error: null,
   isLoading: false,
-  pendingPhone: null,
-  otpSent: false,
+  pendingEmail: null,
+  authMode: 'login' as AuthMode,
 };
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
       /**
-       * Send OTP to phone number (signup or login)
+       * Set auth mode (login or signup)
        */
-      sendOTP: async (phone: string) => {
-        set({ isLoading: true, error: null });
-
-        try {
-          // Try login first (existing user)
-          await AuthAPI.login(phone);
-          set({ pendingPhone: phone, otpSent: true, isLoading: false });
-          return true;
-        } catch {
-          // If login fails, try signup (new user)
-          try {
-            await AuthAPI.signup(phone);
-            set({ pendingPhone: phone, otpSent: true, isLoading: false });
-            return true;
-          } catch (signupError) {
-            const message =
-              signupError instanceof Error ? signupError.message : 'Failed to send OTP';
-            set({ error: message, isLoading: false });
-            return false;
-          }
-        }
+      setAuthMode: (mode: AuthMode) => {
+        set({ authMode: mode, error: null });
       },
 
       /**
-       * Verify OTP code
+       * Set pending email for auth flow
        */
-      verifyOTP: async (code: string) => {
-        const { pendingPhone } = get();
-        if (!pendingPhone) {
-          set({ error: 'No phone number pending verification' });
-          return false;
-        }
+      setPendingEmail: (email: string) => {
+        set({ pendingEmail: email });
+      },
 
+      /**
+       * Login with email and password
+       */
+      login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
 
         try {
-          const { user } = await AuthAPI.verifyOTP(pendingPhone, code);
+          const { user } = await AuthAPI.login(email, password);
           set({
             user,
             status: 'authenticated',
             isLoading: false,
-            pendingPhone: null,
-            otpSent: false,
+            pendingEmail: null,
           });
           return true;
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Invalid OTP';
+          const message = error instanceof Error ? error.message : 'Login failed';
+          set({ error: message, isLoading: false });
+          return false;
+        }
+      },
+
+      /**
+       * Signup with email and password
+       */
+      signup: async (email: string, password: string, name?: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const { user } = await AuthAPI.signup(email, password, name);
+          set({
+            user,
+            status: 'authenticated',
+            isLoading: false,
+            pendingEmail: null,
+          });
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Signup failed';
           set({ error: message, isLoading: false });
           return false;
         }
@@ -173,7 +162,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      storage: createJSONStorage(() => zustandAuthStorage),
+      storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         user: state.user,
         status: state.status,

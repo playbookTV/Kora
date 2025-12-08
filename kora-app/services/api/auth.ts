@@ -2,21 +2,26 @@
  * Authentication API Service
  *
  * Handles all authentication-related API calls including signup, login,
- * OTP verification, and session management.
+ * and session management using email/password.
  */
 
 import apiClient, { TokenStorage, getErrorMessage, ApiResponse } from './client';
 
 export interface AuthUser {
   id: string;
-  phone: string;
-  email?: string;
+  email: string;
+  name?: string;
   created_at: string;
 }
 
 export interface SignupResponse {
   user: AuthUser;
-  message: string;
+  session: {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    token_type: string;
+  };
 }
 
 export interface LoginResponse {
@@ -38,36 +43,25 @@ export interface MeResponse {
  */
 export const AuthAPI = {
   /**
-   * Register a new user with phone number
-   * Supabase will send an OTP to the phone
+   * Register a new user with email and password
    */
-  async signup(phone: string): Promise<SignupResponse> {
+  async signup(email: string, password: string, name?: string): Promise<SignupResponse> {
     try {
       const response = await apiClient.post<ApiResponse<SignupResponse>>('/auth/signup', {
-        phone,
+        email,
+        password,
+        name,
       });
 
       if (!response.data.success || !response.data.data) {
         throw new Error(response.data.error || 'Signup failed');
       }
 
-      return response.data.data;
-    } catch (error) {
-      throw new Error(getErrorMessage(error));
-    }
-  },
+      const { session } = response.data.data;
 
-  /**
-   * Login with phone number (sends OTP)
-   */
-  async login(phone: string): Promise<{ message: string }> {
-    try {
-      const response = await apiClient.post<ApiResponse<{ message: string }>>('/auth/login', {
-        phone,
-      });
-
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.error || 'Login failed');
+      // Store tokens securely
+      if (session) {
+        await TokenStorage.setTokens(session.access_token, session.refresh_token);
       }
 
       return response.data.data;
@@ -77,20 +71,17 @@ export const AuthAPI = {
   },
 
   /**
-   * Verify OTP and complete authentication
-   * This is the main entry point after user receives SMS
+   * Login with email and password
    */
-  async verifyOTP(phone: string, token: string): Promise<LoginResponse> {
+  async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      // Supabase phone auth uses the /auth/verify endpoint
-      const response = await apiClient.post<ApiResponse<LoginResponse>>('/auth/verify', {
-        phone,
-        token,
-        type: 'sms',
+      const response = await apiClient.post<ApiResponse<LoginResponse>>('/auth/login', {
+        email,
+        password,
       });
 
       if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.error || 'OTP verification failed');
+        throw new Error(response.data.error || 'Login failed');
       }
 
       const { session } = response.data.data;

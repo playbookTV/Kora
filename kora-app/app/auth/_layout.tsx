@@ -1,7 +1,7 @@
 /**
  * Auth Layout
  *
- * Layout for authentication screens (phone input, OTP verification).
+ * Layout for authentication screens (login/signup).
  * Uses a simple stack navigation without headers.
  */
 
@@ -18,7 +18,6 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="verify" />
     </Stack>
   );
 }

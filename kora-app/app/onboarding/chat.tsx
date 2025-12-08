@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Button, LoaderScreen, Colors } from 'react-native-ui-lib';
-import { Audio } from 'expo-av';
+import { View, Text, LoaderScreen, Colors, TouchableOpacity } from 'react-native-ui-lib';
+import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,8 +19,6 @@ interface CollectedData {
   savingsGoal?: number;
 }
 
-const MicOnIcon = () => <Feather name="mic" size={32} color={Colors.textInverse} />;
-const MicOffIcon = () => <Feather name="mic-off" size={32} color={Colors.textInverse} />;
 
 export default function OnboardingChat() {
   const router = useRouter();
@@ -35,28 +33,34 @@ export default function OnboardingChat() {
     "Hi, I'm Kora. Pause. Breathe. I'm here to help you spend better. Let's get set up."
   );
 
-  const recording = useRef<Audio.Recording | null>(null);
-  const sound = useRef<Audio.Sound | null>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioPlayer = useRef<AudioPlayer | null>(null);
 
   useEffect(() => {
     handleKoraSpeak(
       "Hi, I'm Kora. Pause. Breathe. I'm here to help you spend better. First, tell me: how much money comes in each month?"
     );
     setStep('INCOME');
+
+    return () => {
+      if (audioRecorder.isRecording) {
+        audioRecorder.stop();
+      }
+      if (audioPlayer.current) {
+        audioPlayer.current.release();
+      }
+    };
   }, []);
 
   const handleStartRecording = async () => {
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        console.error('Recording permission not granted');
+        return;
+      }
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recording.current = newRecording;
+      await audioRecorder.record();
       setIsRecording(true);
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -67,16 +71,21 @@ export default function OnboardingChat() {
     setIsRecording(false);
     setIsProcessing(true);
 
-    if (!recording.current) return;
-
-    const uri = recording.current.getURI();
-    await recording.current.stopAndUnloadAsync();
-
-    if (uri) {
-      processUserAudio(uri);
-    } else {
+    if (!audioRecorder.isRecording) {
       setIsProcessing(false);
+      return;
     }
+
+    try {
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      if (uri) {
+        await processUserAudio(uri);
+      }
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+    }
+    setIsProcessing(false);
   };
 
   const processUserAudio = async (uri: string) => {
@@ -95,11 +104,9 @@ export default function OnboardingChat() {
 
       setKoraText(response.text);
       await handleKoraSpeak(response.text);
-      setIsProcessing(false);
     } catch (error) {
       console.error(error);
       setKoraText("I didn't quite catch that. Could you say it again?");
-      setIsProcessing(false);
     }
   };
 
@@ -159,15 +166,18 @@ export default function OnboardingChat() {
   };
 
   const handleKoraSpeak = async (text: string) => {
-    if (sound.current) {
-      await sound.current.unloadAsync();
-    }
+    try {
+      if (audioPlayer.current) {
+        audioPlayer.current.release();
+      }
 
-    const audioUri = await AIService.speak(text);
-    if (audioUri) {
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri: audioUri });
-      sound.current = newSound;
-      await newSound.playAsync();
+      const audioUri = await AIService.speak(text);
+      if (audioUri) {
+        audioPlayer.current = createAudioPlayer(audioUri);
+        await audioPlayer.current.play();
+      }
+    } catch (error) {
+      console.error('Failed to play audio', error);
     }
   };
 
@@ -211,15 +221,20 @@ export default function OnboardingChat() {
             overlay={false}
           />
         ) : (
-          <Button
-            round
-            backgroundColor={Colors.primary}
-            iconSource={isRecording ? MicOffIcon : MicOnIcon}
-            size={Button.sizes.large}
-            style={{ width: 80, height: 80, borderRadius: BorderRadius.round }}
+          <TouchableOpacity
             onPressIn={handleStartRecording}
             onPressOut={handleStopRecording}
-          />
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: BorderRadius.round,
+              backgroundColor: Colors.primary,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Feather name={isRecording ? 'mic-off' : 'mic'} size={32} color={Colors.textInverse} />
+          </TouchableOpacity>
         )}
         <Text marginT-s3 textMuted caption>
           {isRecording ? 'Listening...' : 'Hold to Speak'}

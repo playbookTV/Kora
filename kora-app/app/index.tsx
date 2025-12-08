@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Button, Colors, TouchableOpacity, Modal } from 'react-native-ui-lib';
+import { View, Text, Colors, TouchableOpacity, Modal } from 'react-native-ui-lib';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -8,12 +8,6 @@ import { useTransactionStore } from '../store/transaction-store';
 import TransactionList from '../components/TransactionList';
 import QuietModeInput from '../components/QuietModeInput';
 import { getSafeSpendColor, BorderRadius } from '../constants/design-system';
-
-const PlusIcon = () => <Feather name="plus" size={24} color={Colors.textDefault} />;
-const MicIcon = () => <Feather name="mic" size={32} color={Colors.textInverse} />;
-const SettingsIcon = () => <Feather name="settings" size={24} color={Colors.textDefault} />;
-const KeyboardIcon = () => <Ionicons name="keypad-outline" size={20} color={Colors.textMuted} />;
-const InsightsIcon = () => <Ionicons name="analytics-outline" size={20} color={Colors.textMuted} />;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -65,18 +59,16 @@ export default function HomeScreen() {
           {/* Quiet Mode Toggle - Small keyboard icon below mic */}
           <View row spread centerV marginB-s3>
             {/* Add Manual Transaction Button */}
-            <Button
-              iconSource={PlusIcon}
-              link
-              onPress={() => router.push('/add-transaction')}
-            />
+            <TouchableOpacity onPress={() => router.push('/add-transaction')} style={{ padding: 8 }}>
+              <Feather name="plus" size={24} color={Colors.textDefault} />
+            </TouchableOpacity>
 
             {/* Center Actions */}
             <View row centerV>
               {/* Quiet Mode Toggle */}
               <TouchableOpacity onPress={handleQuietModeToggle} style={{ padding: 8, marginRight: 16 }}>
                 <View row centerV>
-                  <KeyboardIcon />
+                  <Ionicons name="keypad-outline" size={20} color={Colors.textMuted} />
                   <Text caption textMuted marginL-s1>
                     Quiet
                   </Text>
@@ -86,7 +78,7 @@ export default function HomeScreen() {
               {/* Insights Button */}
               <TouchableOpacity onPress={() => router.push('/insights')} style={{ padding: 8 }}>
                 <View row centerV>
-                  <InsightsIcon />
+                  <Ionicons name="analytics-outline" size={20} color={Colors.textMuted} />
                   <Text caption textMuted marginL-s1>
                     Insights
                   </Text>
@@ -95,23 +87,26 @@ export default function HomeScreen() {
             </View>
 
             {/* Settings Button */}
-            <Button
-              iconSource={SettingsIcon}
-              link
-              onPress={() => router.push('/settings')}
-            />
+            <TouchableOpacity onPress={() => router.push('/settings')} style={{ padding: 8 }}>
+              <Feather name="settings" size={24} color={Colors.textDefault} />
+            </TouchableOpacity>
           </View>
 
           {/* Mic Button (Center) */}
           <View centerH marginB-s4>
-            <Button
-              round
-              backgroundColor={Colors.primary}
-              iconSource={MicIcon}
-              size={Button.sizes.large}
-              style={{ width: 80, height: 80, borderRadius: BorderRadius.round }}
+            <TouchableOpacity
               onPress={handleMicPress}
-            />
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: BorderRadius.round,
+                backgroundColor: Colors.primary,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Feather name="mic" size={32} color={Colors.textInverse} />
+            </TouchableOpacity>
           </View>
         </View>
       </View>

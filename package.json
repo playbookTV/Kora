@@ -48,10 +48,10 @@
   },
   "lint-staged": {
     "kora-app/**/*.{ts,tsx}": [
-      "npx eslint --fix --config kora-app/eslint.config.js"
+      "eslint --fix --config kora-app/eslint.config.js"
     ],
     "kora-backend/**/*.ts": [
-      "npx tsc --noEmit --skipLibCheck --project kora-backend/tsconfig.json"
+      "bash -c 'cd kora-backend && npx tsc --noEmit --skipLibCheck'"
     ]
   }
 }

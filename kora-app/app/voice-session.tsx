@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, Button, LoaderScreen, Colors } from 'react-native-ui-lib';
-import { Audio } from 'expo-av';
+import { View, Text, LoaderScreen, Colors, TouchableOpacity } from 'react-native-ui-lib';
+import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,9 +13,6 @@ import { BorderRadius, Shadows } from '../constants/design-system';
 // Intent types from conversation prompts
 type Intent = 'SPEND_DECISION' | 'SAFE_SPEND_CHECK' | 'EMOTIONAL' | 'POST_SPEND' | 'GENERAL';
 
-const MicOnIcon = () => <Feather name="mic" size={32} color={Colors.textInverse} />;
-const MicOffIcon = () => <Feather name="mic-off" size={32} color={Colors.textInverse} />;
-
 export default function VoiceSession() {
   const router = useRouter();
   const { updateSafeSpend, recalculateSafeSpend, currentBalance, daysToPayday, safeSpendToday, transactions, addTransaction } = useTransactionStore();
@@ -25,24 +22,31 @@ export default function VoiceSession() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [koraText, setKoraText] = useState("I'm listening. What's on your mind?");
 
-  const recording = useRef<Audio.Recording | null>(null);
-  const sound = useRef<Audio.Sound | null>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioPlayer = useRef<AudioPlayer | null>(null);
 
   useEffect(() => {
-    handleStartRecording();
+    // Request permissions on mount
+    (async () => {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (status.granted) {
+        handleStartRecording();
+      }
+    })();
+
     return () => {
-      if (recording.current) recording.current.stopAndUnloadAsync();
+      if (audioRecorder.isRecording) {
+        audioRecorder.stop();
+      }
+      if (audioPlayer.current) {
+        audioPlayer.current.release();
+      }
     };
   }, []);
 
   const handleStartRecording = async () => {
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recording.current = newRecording;
+      await audioRecorder.record();
       setIsRecording(true);
       setKoraText('Listening...');
     } catch (err) {
@@ -51,13 +55,20 @@ export default function VoiceSession() {
   };
 
   const handleStopRecording = async () => {
-    if (!recording.current) return;
+    if (!audioRecorder.isRecording) return;
     setIsRecording(false);
     setIsProcessing(true);
-    const uri = recording.current.getURI();
-    await recording.current.stopAndUnloadAsync();
-    if (uri) processUserAudio(uri);
-    else setIsProcessing(false);
+
+    try {
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      if (uri) {
+        await processUserAudio(uri);
+      }
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+    }
+    setIsProcessing(false);
   };
 
   const processUserAudio = async (uri: string) => {
@@ -127,21 +138,25 @@ export default function VoiceSession() {
 
       setKoraText(response.text);
       await handleKoraSpeak(response.text);
-      setIsProcessing(false);
     } catch (error) {
       console.error(error);
       setKoraText("I struggled to hear that.");
-      setIsProcessing(false);
     }
   };
 
   const handleKoraSpeak = async (text: string) => {
-    if (sound.current) await sound.current.unloadAsync();
-    const audioUri = await AIService.speak(text);
-    if (audioUri) {
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri: audioUri });
-      sound.current = newSound;
-      await newSound.playAsync();
+    try {
+      if (audioPlayer.current) {
+        audioPlayer.current.release();
+      }
+
+      const audioUri = await AIService.speak(text);
+      if (audioUri) {
+        audioPlayer.current = createAudioPlayer(audioUri);
+        await audioPlayer.current.play();
+      }
+    } catch (error) {
+      console.error('Failed to play audio', error);
     }
   };
 
@@ -184,24 +199,25 @@ export default function VoiceSession() {
             overlay={false}
           />
         ) : (
-          <Button
-            round
-            backgroundColor={Colors.primary}
-            iconSource={isRecording ? MicOffIcon : MicOnIcon}
-            size={Button.sizes.large}
-            style={{ width: 80, height: 80, borderRadius: BorderRadius.round }}
+          <TouchableOpacity
             onPressIn={() => { handleStartRecording(); }}
             onPressOut={() => { handleStopRecording(); }}
-          />
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: BorderRadius.round,
+              backgroundColor: Colors.primary,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Feather name={isRecording ? 'mic-off' : 'mic'} size={32} color={Colors.textInverse} />
+          </TouchableOpacity>
         )}
 
-        <Button
-          link
-          label="Close"
-          color={Colors.textMuted}
-          marginT-s5
-          onPress={() => router.back()}
-        />
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
+          <Text style={{ color: Colors.textMuted }}>Close</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

@@ -1,158 +1,185 @@
 /**
- * Phone Input Screen
+ * Auth Screen
  *
- * First step of authentication - user enters their phone number.
- * Supports Nigerian (+234) and UK (+44) phone numbers.
- *
- * Follows Kora design principles: minimal UI, voice-first mentality.
+ * Combined login/signup screen with email and password.
+ * Users can toggle between login and signup modes.
  */
 
 import { useState, useCallback } from 'react';
-import { View, Text, TextField, Button, Colors, TouchableOpacity } from 'react-native-ui-lib';
+import { View, Text, Button, Colors, TouchableOpacity } from 'react-native-ui-lib';
+import { TextInput, Keyboard, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth-store';
+import { useUserStore } from '@/store/user-store';
 import { BorderRadius, Shadows } from '@/constants/design-system';
 
-// Country codes for geo-aware selection
-const COUNTRY_CODES = [
-  { code: '+234', country: 'Nigeria', flag: '🇳🇬' },
-  { code: '+44', country: 'UK', flag: '🇬🇧' },
-] as const;
-
-export default function PhoneInputScreen() {
+export default function AuthScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { sendOTP, isLoading, error, clearError } = useAuthStore();
+  const { login, signup, isLoading, error, clearError, authMode, setAuthMode } = useAuthStore();
+  const { hasOnboarded } = useUserStore();
 
-  const [phone, setPhone] = useState('');
-  const [countryIndex, setCountryIndex] = useState(0);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  const selectedCountry = COUNTRY_CODES[countryIndex];
-  const fullPhoneNumber = `${selectedCountry.code}${phone.replace(/^0+/, '')}`;
+  const isSignup = authMode === 'signup';
 
-  // Validate phone number
-  const isValidPhone = useCallback(() => {
-    const cleaned = phone.replace(/\D/g, '');
-    if (selectedCountry.code === '+234') {
-      // Nigerian numbers: 10-11 digits
-      return cleaned.length >= 10 && cleaned.length <= 11;
-    } else if (selectedCountry.code === '+44') {
-      // UK numbers: 10-11 digits
-      return cleaned.length >= 10 && cleaned.length <= 11;
-    }
-    return false;
-  }, [phone, selectedCountry.code]);
+  // Validate email
+  const isValidEmail = useCallback(() => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }, [email]);
 
-  // Toggle country code
-  const toggleCountry = () => {
-    setCountryIndex((prev) => (prev + 1) % COUNTRY_CODES.length);
+  // Validate password
+  const isValidPassword = useCallback(() => {
+    return password.length >= 8;
+  }, [password]);
+
+  // Validate form
+  const isValidForm = useCallback(() => {
+    return isValidEmail() && isValidPassword();
+  }, [isValidEmail, isValidPassword]);
+
+  // Handle submit
+  const handleSubmit = async () => {
+    if (!isValidForm()) return;
+
+    Keyboard.dismiss();
     clearError();
+
+    let success: boolean;
+    if (isSignup) {
+      success = await signup(email, password, name || undefined);
+    } else {
+      success = await login(email, password);
+    }
+
+    if (success) {
+      if (hasOnboarded) {
+        router.replace('/');
+      } else {
+        router.replace('/onboarding');
+      }
+    }
   };
 
-  // Handle continue button
-  const handleContinue = async () => {
-    if (!isValidPhone()) return;
-
+  // Toggle auth mode
+  const toggleAuthMode = () => {
+    setAuthMode(isSignup ? 'login' : 'signup');
     clearError();
-    const success = await sendOTP(fullPhoneNumber);
-    if (success) {
-      router.push('/auth/verify');
-    }
   };
 
   return (
     <View flex bg-screenBG padding-page style={{ paddingTop: insets.top + 20 }}>
       {/* Header */}
-      <View marginB-s10>
+      <View marginB-s8>
         <Text h2 textDefault>
-          Welcome to Kora
+          {isSignup ? 'Create Account' : 'Welcome Back'}
         </Text>
         <Text body textMuted marginT-s2>
-          Enter your phone number to get started
+          {isSignup
+            ? 'Sign up to start managing your spending'
+            : 'Sign in to continue to Kora'}
         </Text>
       </View>
 
-      {/* Phone Input */}
-      <View marginB-s6>
+      {/* Name Input (Signup only) */}
+      {isSignup && (
+        <View marginB-s4>
+          <Text caption textMuted marginB-s2>
+            Name (optional)
+          </Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              placeholder="Your name"
+              placeholderTextColor={Colors.textDisabled}
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+              style={styles.input}
+            />
+          </View>
+        </View>
+      )}
+
+      {/* Email Input */}
+      <View marginB-s4>
         <Text caption textMuted marginB-s2>
-          Phone Number
+          Email
         </Text>
-
-        <View
-          row
-          centerV
-          bg-cardBG
-          paddingH-s4
-          style={[
-            { borderRadius: BorderRadius.large, height: 56 },
-            error ? { borderWidth: 1, borderColor: Colors.error } : {},
-          ]}
-        >
-          {/* Country Code Selector */}
-          <TouchableOpacity onPress={toggleCountry} style={{ marginRight: 12 }}>
-            <View row centerV>
-              <Text body textDefault>
-                {selectedCountry.flag} {selectedCountry.code}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={16}
-                color={Colors.textMuted}
-                style={{ marginLeft: 4 }}
-              />
-            </View>
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View
-            style={{
-              width: 1,
-              height: 24,
-              backgroundColor: Colors.divider,
-              marginRight: 12,
-            }}
-          />
-
-          {/* Phone Number Input */}
-          <TextField
-            placeholder="812 345 6789"
+        <View style={[
+          styles.inputContainer,
+          error && !isValidEmail() ? styles.inputError : {},
+        ]}>
+          <TextInput
+            placeholder="you@example.com"
             placeholderTextColor={Colors.textDisabled}
-            value={phone}
+            value={email}
             onChangeText={(text: string) => {
-              setPhone(text.replace(/[^0-9]/g, ''));
+              setEmail(text.toLowerCase().trim());
               if (error) clearError();
             }}
-            keyboardType="phone-pad"
-            maxLength={11}
-            style={{
-              flex: 1,
-              fontSize: 18,
-              color: Colors.textDefault,
-              height: '100%',
-            }}
-            containerStyle={{ flex: 1 }}
-            fieldStyle={{ height: '100%' }}
-            hideUnderline
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.input}
           />
         </View>
+      </View>
 
-        {/* Error Message */}
-        {error && (
-          <Text caption style={{ color: Colors.error }} marginT-s2>
-            {error}
+      {/* Password Input */}
+      <View marginB-s6>
+        <Text caption textMuted marginB-s2>
+          Password
+        </Text>
+        <View style={[
+          styles.inputContainer,
+          styles.passwordContainer,
+          error ? styles.inputError : {},
+        ]}>
+          <TextInput
+            placeholder={isSignup ? 'At least 8 characters' : 'Enter password'}
+            placeholderTextColor={Colors.textDisabled}
+            value={password}
+            onChangeText={(text: string) => {
+              setPassword(text);
+              if (error) clearError();
+            }}
+            secureTextEntry={!showPassword}
+            style={[styles.input, { flex: 1 }]}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ paddingLeft: 12 }}>
+            <Text caption style={{ color: Colors.primary }}>
+              {showPassword ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {isSignup && password.length > 0 && password.length < 8 && (
+          <Text caption style={{ color: Colors.warning }} marginT-s1>
+            Password must be at least 8 characters
           </Text>
         )}
       </View>
 
-      {/* Continue Button */}
+      {/* Error Message */}
+      {error && (
+        <View marginB-s4>
+          <Text caption style={{ color: Colors.error }}>
+            {error}
+          </Text>
+        </View>
+      )}
+
+      {/* Submit Button */}
       <Button
-        label={isLoading ? 'Sending...' : 'Continue'}
-        disabled={!isValidPhone() || isLoading}
-        onPress={handleContinue}
-        backgroundColor={isValidPhone() ? Colors.primary : Colors.textDisabled}
+        label={isLoading ? (isSignup ? 'Creating...' : 'Signing in...') : (isSignup ? 'Create Account' : 'Sign In')}
+        disabled={!isValidForm() || isLoading}
+        onPress={handleSubmit}
+        backgroundColor={isValidForm() ? Colors.primary : Colors.textDisabled}
         disabledBackgroundColor={Colors.textDisabled}
         labelStyle={{
           color: Colors.textInverse,
@@ -165,6 +192,18 @@ export default function PhoneInputScreen() {
         ]}
       />
 
+      {/* Toggle Auth Mode */}
+      <View center marginT-s6>
+        <TouchableOpacity onPress={toggleAuthMode}>
+          <Text body textMuted>
+            {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+            <Text style={{ color: Colors.primary, fontWeight: '600' }}>
+              {isSignup ? 'Sign In' : 'Sign Up'}
+            </Text>
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Terms Notice */}
       <View flex bottom paddingB-s6>
         <Text caption textMuted center>
@@ -174,3 +213,25 @@ export default function PhoneInputScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  inputContainer: {
+    backgroundColor: Colors.cardBG,
+    borderRadius: BorderRadius.large,
+    height: 56,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputError: {
+    borderWidth: 1,
+    borderColor: Colors.error,
+  },
+  input: {
+    fontSize: 16,
+    color: Colors.textDefault,
+  },
+});

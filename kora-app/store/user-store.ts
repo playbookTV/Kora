@@ -1,17 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { MMKV } from 'react-native-mmkv';
-
-// Initialize MMKV
-// Casting to any to resolve TS error: "'MMKV' only refers to a type, but is being used as a value here"
-export const storage = new (MMKV as any)();
-
-// MMKV wrapper for Zustand
-export const mmkvStorage = {
-    setItem: (name: string, value: string) => storage.set(name, value),
-    getItem: (name: string) => storage.getString(name) ?? null,
-    removeItem: (name: string) => storage.delete(name),
-};
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface FixedExpense {
     id?: string;
@@ -82,7 +71,7 @@ export const useUserStore = create<UserState>()(
         }),
         {
             name: 'user-storage',
-            storage: createJSONStorage(() => mmkvStorage),
+            storage: createJSONStorage(() => AsyncStorage),
         }
     )
 );

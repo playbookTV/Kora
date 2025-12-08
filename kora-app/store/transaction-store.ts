@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { mmkvStorage, useUserStore } from './user-store'; // Reuse MMKV instance
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUserStore } from './user-store';
 import { FinanceEngine } from '../services/finance-engine';
 
 export interface Transaction {
@@ -120,7 +121,7 @@ export const useTransactionStore = create<TransactionState>()(
         }),
         {
             name: 'transaction-storage',
-            storage: createJSONStorage(() => mmkvStorage),
+            storage: createJSONStorage(() => AsyncStorage),
         }
     )
 );

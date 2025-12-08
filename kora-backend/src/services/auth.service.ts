@@ -5,7 +5,7 @@ export class AuthService {
   static async signup(input: SignupInput) {
     const { email, password, name } = input;
 
-    // Create auth user
+    // Create auth user (profile is auto-created by database trigger)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -16,20 +16,16 @@ export class AuthService {
       throw new Error(authError.message);
     }
 
-    // Create profile
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .insert({
-        id: authData.user.id,
-        name: name || null,
-        currency: 'NGN',
-        has_onboarded: false,
-      });
+    // Update profile with name if provided (trigger creates basic profile)
+    if (name) {
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ name })
+        .eq('id', authData.user.id);
 
-    if (profileError) {
-      // Rollback: delete auth user if profile creation fails
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      throw new Error('Failed to create user profile');
+      if (updateError) {
+        console.warn('Failed to update profile name:', updateError.message);
+      }
     }
 
     // Sign in to get tokens

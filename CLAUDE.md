@@ -94,6 +94,12 @@ MISTRAL_API_KEY=
 ELEVENLABS_API_KEY=
 ```
 
+## Git Hooks
+
+Pre-commit hooks run automatically via Husky + lint-staged:
+- **kora-app/** files: ESLint with auto-fix
+- **kora-backend/** files: TypeScript type-check
+
 ## Codacy Integration
 
 When using Codacy's MCP Server tools:

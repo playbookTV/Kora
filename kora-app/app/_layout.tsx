@@ -27,6 +27,7 @@ export default function RootLayout() {
       setIsReady(true);
     };
     init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Hide splash screen when fonts are loaded
@@ -61,6 +62,7 @@ export default function RootLayout() {
       // Already onboarded - redirect to home
       router.replace('/');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, hasOnboarded, segments, loaded, isReady]);
 
   if (!loaded || !isReady) {
