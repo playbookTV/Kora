@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, LoaderScreen, Colors, TouchableOpacity } from 'react-native-ui-lib';
-import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, type AudioPlayer } from 'expo-audio';
+import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,10 +24,15 @@ export default function VoiceSession() {
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const audioPlayer = useRef<AudioPlayer | null>(null);
+  const isRecordingRef = useRef(false); // Track recording state synchronously
 
   useEffect(() => {
-    // Request permissions on mount
+    // Set audio mode and request permissions on mount
     (async () => {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
       const status = await AudioModule.requestRecordingPermissionsAsync();
       if (status.granted) {
         handleStartRecording();
@@ -35,9 +40,6 @@ export default function VoiceSession() {
     })();
 
     return () => {
-      if (audioRecorder.isRecording) {
-        audioRecorder.stop();
-      }
       if (audioPlayer.current) {
         audioPlayer.current.release();
       }
@@ -46,24 +48,60 @@ export default function VoiceSession() {
 
   const handleStartRecording = async () => {
     try {
-      await audioRecorder.record();
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      console.log('Recording permission status:', status);
+      if (!status.granted) {
+        console.error('Recording permission not granted');
+        setKoraText('I need microphone permission to listen.');
+        return;
+      }
+
+      console.log('Preparing recorder...');
+      await audioRecorder.prepareToRecordAsync();
+      console.log('Starting recording...');
+      audioRecorder.record();
+      isRecordingRef.current = true;
       setIsRecording(true);
       setKoraText('Listening...');
+      console.log('Recording started, isRecording:', audioRecorder.isRecording);
     } catch (err) {
       console.error('Failed to start recording', err);
+      setKoraText('Failed to start recording. Please try again.');
     }
   };
 
   const handleStopRecording = async () => {
-    if (!audioRecorder.isRecording) return;
+    console.log('handleStopRecording called, isRecordingRef:', isRecordingRef.current);
+    if (!isRecordingRef.current) {
+      console.log('Not recording (ref), returning early');
+      return;
+    }
+
+    isRecordingRef.current = false;
     setIsRecording(false);
     setIsProcessing(true);
 
     try {
-      await audioRecorder.stop();
-      const uri = audioRecorder.uri;
+      console.log('Stopping recording...');
+      audioRecorder.stop();
+
+      // Poll for the URI to become available (up to 2 seconds)
+      let uri = audioRecorder.uri;
+      let attempts = 0;
+      while (!uri && attempts < 20) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        uri = audioRecorder.uri;
+        attempts++;
+        console.log('Waiting for URI, attempt:', attempts, 'uri:', uri);
+      }
+
+      console.log('Recording stopped, final uri:', uri);
+
       if (uri) {
         await processUserAudio(uri);
+      } else {
+        console.error('No audio URI after stopping');
+        setKoraText('Recording failed. Please try again.');
       }
     } catch (err) {
       console.error('Failed to stop recording', err);
@@ -153,7 +191,7 @@ export default function VoiceSession() {
       const audioUri = await AIService.speak(text);
       if (audioUri) {
         audioPlayer.current = createAudioPlayer(audioUri);
-        await audioPlayer.current.play();
+        audioPlayer.current.play();
       }
     } catch (error) {
       console.error('Failed to play audio', error);

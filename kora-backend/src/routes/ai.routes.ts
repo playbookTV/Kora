@@ -48,10 +48,33 @@ const calculateFinanceState = async (userId: string, accessToken: string) => {
 };
 
 export async function aiRoutes(fastify: FastifyInstance) {
-  // All routes require authentication
-  fastify.addHook('preHandler', authMiddleware);
+  // POST /ai/tts - Text-to-speech conversion (PUBLIC - no auth required)
+  fastify.post('/tts', async (request, reply) => {
+    const result = ttsRequestSchema.safeParse(request.body);
 
-  // POST /ai/transcribe - Upload audio, get transcription
+    if (!result.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation error',
+        details: result.error.issues,
+      });
+    }
+
+    try {
+      const audioBuffer = await AIOrchestrator.synthesize(result.data.text);
+
+      reply.header('Content-Type', 'audio/mpeg');
+      return reply.send(audioBuffer);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'TTS failed';
+      return reply.status(400).send({
+        success: false,
+        error: message,
+      });
+    }
+  });
+
+  // POST /ai/transcribe - Upload audio, get transcription (PUBLIC - needed for onboarding)
   fastify.post('/transcribe', async (request, reply) => {
     try {
       const data = await request.file();
@@ -72,12 +95,49 @@ export async function aiRoutes(fastify: FastifyInstance) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Transcription failed';
+      console.error('[Transcribe] Error:', message);
       return reply.status(400).send({
         success: false,
         error: message,
       });
     }
   });
+
+  // POST /ai/onboarding - Onboarding conversation step (PUBLIC - users not authenticated yet)
+  fastify.post('/onboarding', async (request, reply) => {
+    const result = onboardingRequestSchema.safeParse(request.body);
+
+    if (!result.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation error',
+        details: result.error.issues,
+      });
+    }
+
+    try {
+      const response = await AIOrchestrator.handleOnboarding({
+        step: result.data.step as OnboardingStep,
+        currency: (result.data.currency || 'NGN') as Currency,
+        collectedData: result.data.collectedData || {},
+        userMessage: result.data.message,
+      });
+
+      return reply.send({
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Onboarding failed';
+      return reply.status(400).send({
+        success: false,
+        error: message,
+      });
+    }
+  });
+
+  // All remaining routes require authentication
+  fastify.addHook('preHandler', authMiddleware);
 
   // POST /ai/chat - Send text, get AI response
   fastify.post('/chat', async (request, reply) => {
@@ -127,41 +187,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // POST /ai/onboarding - Onboarding conversation step
-  fastify.post('/onboarding', async (request, reply) => {
-    const { user, accessToken } = request as AuthenticatedRequest;
-    const result = onboardingRequestSchema.safeParse(request.body);
-
-    if (!result.success) {
-      return reply.status(400).send({
-        success: false,
-        error: 'Validation error',
-        details: result.error.issues,
-      });
-    }
-
-    try {
-      const profile = await UserService.getProfile(user.id, accessToken);
-
-      const response = await AIOrchestrator.handleOnboarding({
-        step: result.data.step as OnboardingStep,
-        currency: profile.currency as Currency,
-        collectedData: result.data.collectedData || {},
-        userMessage: result.data.message,
-      });
-
-      return reply.send({
-        success: true,
-        data: response,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Onboarding failed';
-      return reply.status(400).send({
-        success: false,
-        error: message,
-      });
-    }
-  });
+  // Note: /ai/onboarding is now public (defined above auth middleware) since users aren't authenticated during onboarding
 
   // POST /ai/voice - Full voice flow (audio in, response out)
   fastify.post('/voice', async (request, reply) => {
@@ -236,29 +262,4 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // POST /ai/tts - Text-to-speech conversion
-  fastify.post('/tts', async (request, reply) => {
-    const result = ttsRequestSchema.safeParse(request.body);
-
-    if (!result.success) {
-      return reply.status(400).send({
-        success: false,
-        error: 'Validation error',
-        details: result.error.issues,
-      });
-    }
-
-    try {
-      const audioBuffer = await AIOrchestrator.synthesize(result.data.text);
-
-      reply.header('Content-Type', 'audio/mpeg');
-      return reply.send(audioBuffer);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'TTS failed';
-      return reply.status(400).send({
-        success: false,
-        error: message,
-      });
-    }
-  });
 }

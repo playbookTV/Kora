@@ -16,7 +16,18 @@ const envSchema = z.object({
   // AI Services
   OPENAI_API_KEY: z.string().min(1),
   MISTRAL_API_KEY: z.string().min(1),
+
+  // Google Cloud TTS (Primary)
+  // Create a service account at: https://console.cloud.google.com/iam-admin/serviceaccounts
+  // Enable "Cloud Text-to-Speech API" in your project
+  // Download the JSON key and paste its entire contents as a single-line string
+  // Example: {"type":"service_account","project_id":"...","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n..."}
+  GOOGLE_CLOUD_CREDENTIALS: z.string().optional(),
+
+  // ElevenLabs (Fallback)
   ELEVENLABS_API_KEY: z.string().min(1),
+  // Default voice: "Rachel" - a clear, professional female voice
+  // Get other voice IDs from https://api.elevenlabs.io/v1/voices
   ELEVENLABS_VOICE_ID: z.string().default('21m00Tcm4TlvDq8ikWAM'),
 
   // Optional

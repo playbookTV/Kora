@@ -1,4 +1,5 @@
 import { WhisperTool } from './tools/whisper.tool.js';
+import { GoogleTTSTool } from './tools/google-tts.tool.js';
 import { ElevenLabsTool } from './tools/elevenlabs.tool.js';
 import { processOnboarding } from './chains/onboarding.chain.js';
 import { processConversation } from './chains/conversation.chain.js';
@@ -15,9 +16,28 @@ export class AIOrchestrator {
     return WhisperTool.transcribe(audioBuffer, filename);
   }
 
-  // Text-to-speech
+  // Text-to-speech with fallback chain: Google TTS (primary) -> ElevenLabs (fallback)
   static async synthesize(text: string): Promise<Buffer> {
-    return ElevenLabsTool.synthesize(text);
+    // Try Google Cloud TTS first (primary)
+    try {
+      console.log('[AIOrchestrator] Attempting Google Cloud TTS (primary)...');
+      const audioBuffer = await GoogleTTSTool.synthesize(text);
+      console.log('[AIOrchestrator] Google TTS succeeded');
+      return audioBuffer;
+    } catch (googleError) {
+      console.warn('[AIOrchestrator] Google TTS failed:', googleError instanceof Error ? googleError.message : googleError);
+      console.log('[AIOrchestrator] Falling back to ElevenLabs...');
+    }
+
+    // Fall back to ElevenLabs
+    try {
+      const audioBuffer = await ElevenLabsTool.synthesize(text);
+      console.log('[AIOrchestrator] ElevenLabs fallback succeeded');
+      return audioBuffer;
+    } catch (elevenLabsError) {
+      console.error('[AIOrchestrator] ElevenLabs fallback also failed:', elevenLabsError instanceof Error ? elevenLabsError.message : elevenLabsError);
+      throw new Error('All TTS providers failed. Unable to synthesize speech.');
+    }
   }
 
   // Onboarding conversation
@@ -84,6 +104,7 @@ export class AIOrchestrator {
 
 // Re-export tools and chains for direct access if needed
 export { WhisperTool } from './tools/whisper.tool.js';
+export { GoogleTTSTool } from './tools/google-tts.tool.js';
 export { ElevenLabsTool } from './tools/elevenlabs.tool.js';
 export { processOnboarding } from './chains/onboarding.chain.js';
 export { processConversation, classifyIntent } from './chains/conversation.chain.js';

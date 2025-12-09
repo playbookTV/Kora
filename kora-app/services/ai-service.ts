@@ -1,5 +1,4 @@
-import * as Speech from 'expo-speech';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Paths, File } from 'expo-file-system';
 import apiClient from './api/client';
 
 export interface AIResponse {
@@ -16,11 +15,7 @@ export class AIService {
    */
   static async transcribe(audioUri: string): Promise<string> {
     try {
-      // Read the audio file and create form data
-      const fileInfo = await FileSystem.getInfoAsync(audioUri);
-      if (!fileInfo.exists) {
-        throw new Error('Audio file not found');
-      }
+      console.log('Transcribing audio from:', audioUri);
 
       const formData = new FormData();
       formData.append('file', {
@@ -40,8 +35,13 @@ export class AIService {
       }
 
       return response.data.data.transcription;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Transcribe Error:', error);
+      // Log detailed error info
+      if (error?.response) {
+        console.error('Transcribe Error Status:', error.response.status);
+        console.error('Transcribe Error Data:', error.response.data);
+      }
       throw new Error('Failed to transcribe audio.');
     }
   }
@@ -110,30 +110,62 @@ export class AIService {
   }
 
   /**
-   * Text-to-Speech using backend (which proxies to ElevenLabs)
-   * Falls back to expo-speech if backend fails
+   * Text-to-Speech using backend (Google Cloud TTS primary, ElevenLabs fallback)
+   * Returns the URI of the audio file, or throws if all providers fail
    */
-  static async speak(text: string): Promise<string | null> {
+  static async speak(text: string): Promise<string> {
+    // Skip empty text
+    if (!text || text.trim().length === 0) {
+      throw new Error('No text provided for speech synthesis');
+    }
+
+    console.log('[TTS] Requesting speech synthesis for', text.length, 'characters');
+
     try {
       const response = await apiClient.post('/ai/tts', { text }, {
         responseType: 'arraybuffer',
+        timeout: 45000, // 45 second timeout to allow for fallback chain
       });
 
-      // Save the audio to a temp file
+      // Check if we got valid audio data
+      if (!response.data || response.data.byteLength === 0) {
+        throw new Error('Empty audio response from server');
+      }
+
+      // Save the audio to a temp file using new expo-file-system API
       const base64Audio = btoa(
         new Uint8Array(response.data).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
 
-      const audioPath = `${FileSystem.cacheDirectory}speech_${Date.now()}.mp3`;
-      await FileSystem.writeAsStringAsync(audioPath, base64Audio, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      const speechFile = new File(Paths.cache, `speech_${Date.now()}.mp3`);
+      await speechFile.write(base64Audio, { encoding: 'base64' });
 
-      return audioPath;
-    } catch (error) {
-      console.log('TTS via backend failed, using fallback:', error);
-      Speech.speak(text);
-      return null;
+      console.log('[TTS] Audio saved to:', speechFile.uri);
+      return speechFile.uri;
+    } catch (error: any) {
+      // Log the specific error for debugging
+      let errorMessage = error?.message || 'Unknown error';
+
+      // Try to decode error from arraybuffer response
+      if (error?.response?.data) {
+        try {
+          if (error.response.data instanceof ArrayBuffer) {
+            const decoder = new TextDecoder('utf-8');
+            const jsonStr = decoder.decode(error.response.data);
+            const errorJson = JSON.parse(jsonStr);
+            errorMessage = errorJson.error || errorMessage;
+          } else if (typeof error.response.data === 'object') {
+            errorMessage = error.response.data.error || errorMessage;
+          }
+        } catch {
+          // Ignore decode errors
+        }
+      }
+
+      console.error('[TTS] Speech synthesis failed:', errorMessage);
+
+      // Re-throw - no fallback to native speech
+      throw new Error(`Speech synthesis failed: ${errorMessage}`);
     }
   }
 }

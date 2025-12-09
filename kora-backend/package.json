@@ -9,7 +9,12 @@
     "start": "node dist/index.js",
     "lint": "tsc --noEmit"
   },
-  "keywords": ["finance", "ai", "voice", "fastify"],
+  "keywords": [
+    "finance",
+    "ai",
+    "voice",
+    "fastify"
+  ],
   "author": "",
   "license": "ISC",
   "type": "module",
@@ -17,6 +22,7 @@
     "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.3.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@google-cloud/text-to-speech": "^6.4.0",
     "@langchain/core": "^1.1.4",
     "@langchain/mistralai": "^1.0.1",
     "@supabase/supabase-js": "^2.86.2",

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, LoaderScreen, Colors, TouchableOpacity } from 'react-native-ui-lib';
-import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, type AudioPlayer } from 'expo-audio';
+import { useAudioRecorder, AudioModule, RecordingPresets, createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,17 +35,23 @@ export default function OnboardingChat() {
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const audioPlayer = useRef<AudioPlayer | null>(null);
+  const isRecordingRef = useRef(false); // Track recording state synchronously
 
   useEffect(() => {
+    // Set audio mode to allow recording
+    (async () => {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+    })();
+
     handleKoraSpeak(
       "Hi, I'm Kora. Pause. Breathe. I'm here to help you spend better. First, tell me: how much money comes in each month?"
     );
     setStep('INCOME');
 
     return () => {
-      if (audioRecorder.isRecording) {
-        audioRecorder.stop();
-      }
       if (audioPlayer.current) {
         audioPlayer.current.release();
       }
@@ -55,35 +61,60 @@ export default function OnboardingChat() {
   const handleStartRecording = async () => {
     try {
       const status = await AudioModule.requestRecordingPermissionsAsync();
+      console.log('[Onboarding] Recording permission status:', status);
       if (!status.granted) {
-        console.error('Recording permission not granted');
+        console.error('[Onboarding] Recording permission not granted');
+        setKoraText('I need microphone permission to listen.');
         return;
       }
 
-      await audioRecorder.record();
+      console.log('[Onboarding] Preparing recorder...');
+      await audioRecorder.prepareToRecordAsync();
+      console.log('[Onboarding] Starting recording...');
+      audioRecorder.record();
+      isRecordingRef.current = true;
       setIsRecording(true);
+      console.log('[Onboarding] Recording started, isRecording:', audioRecorder.isRecording);
     } catch (err) {
-      console.error('Failed to start recording', err);
+      console.error('[Onboarding] Failed to start recording', err);
     }
   };
 
   const handleStopRecording = async () => {
-    setIsRecording(false);
-    setIsProcessing(true);
-
-    if (!audioRecorder.isRecording) {
-      setIsProcessing(false);
+    console.log('[Onboarding] handleStopRecording called, isRecordingRef:', isRecordingRef.current);
+    if (!isRecordingRef.current) {
+      console.log('[Onboarding] Not recording (ref), returning early');
       return;
     }
 
+    isRecordingRef.current = false;
+    setIsRecording(false);
+    setIsProcessing(true);
+
     try {
-      await audioRecorder.stop();
-      const uri = audioRecorder.uri;
+      console.log('[Onboarding] Stopping recording...');
+      audioRecorder.stop();
+
+      // Poll for the URI to become available (up to 2 seconds)
+      let uri = audioRecorder.uri;
+      let attempts = 0;
+      while (!uri && attempts < 20) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        uri = audioRecorder.uri;
+        attempts++;
+        console.log('[Onboarding] Waiting for URI, attempt:', attempts, 'uri:', uri);
+      }
+
+      console.log('[Onboarding] Recording stopped, final uri:', uri);
+
       if (uri) {
         await processUserAudio(uri);
+      } else {
+        console.error('[Onboarding] No audio URI after stopping');
+        setKoraText('Recording failed. Please try again.');
       }
     } catch (err) {
-      console.error('Failed to stop recording', err);
+      console.error('[Onboarding] Failed to stop recording', err);
     }
     setIsProcessing(false);
   };
@@ -166,18 +197,27 @@ export default function OnboardingChat() {
   };
 
   const handleKoraSpeak = async (text: string) => {
+    console.log('[Onboarding] handleKoraSpeak called with text length:', text.length);
     try {
       if (audioPlayer.current) {
         audioPlayer.current.release();
       }
 
+      console.log('[Onboarding] Requesting TTS from backend...');
       const audioUri = await AIService.speak(text);
+      console.log('[Onboarding] TTS returned audioUri:', audioUri);
+
       if (audioUri) {
+        console.log('[Onboarding] Creating audio player...');
         audioPlayer.current = createAudioPlayer(audioUri);
-        await audioPlayer.current.play();
+        console.log('[Onboarding] Playing audio...');
+        audioPlayer.current.play(); // play() doesn't need await
+        console.log('[Onboarding] Audio playback started');
+      } else {
+        console.warn('[Onboarding] No audio URI returned from TTS');
       }
     } catch (error) {
-      console.error('Failed to play audio', error);
+      console.error('[Onboarding] Failed to play audio:', error);
     }
   };
 

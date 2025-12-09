@@ -33,6 +33,7 @@ export const chatRequestSchema = z.object({
 export const onboardingRequestSchema = z.object({
   message: z.string().min(1).max(2000),
   step: onboardingStepSchema,
+  currency: currencySchema.optional(),
   collectedData: z
     .object({
       income: z
