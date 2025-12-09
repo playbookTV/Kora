@@ -1,4 +1,5 @@
 import { WhisperTool } from './tools/whisper.tool.js';
+import { GoogleSTTTool } from './tools/google-stt.tool.js';
 import { GoogleTTSTool } from './tools/google-tts.tool.js';
 import { ElevenLabsTool } from './tools/elevenlabs.tool.js';
 import { processOnboarding } from './chains/onboarding.chain.js';
@@ -11,9 +12,36 @@ import type {
 } from '../../types/index.js';
 
 export class AIOrchestrator {
-  // Speech-to-text
+  // Speech-to-text with fallback chain: Google STT (primary) -> Whisper (fallback)
+  // Note: Google STT doesn't support M4A/AAC, so we skip directly to Whisper for those formats
   static async transcribe(audioBuffer: Buffer, filename?: string): Promise<string> {
-    return WhisperTool.transcribe(audioBuffer, filename);
+    // Check if Google STT supports this format
+    const googleSupportsFormat = GoogleSTTTool.isFormatSupported(filename);
+
+    // Try Google Cloud STT first (primary) - only if format is supported
+    if (googleSupportsFormat) {
+      try {
+        console.log('[AIOrchestrator] Attempting Google Cloud STT (primary)...');
+        const transcription = await GoogleSTTTool.transcribe(audioBuffer, filename);
+        console.log('[AIOrchestrator] Google STT succeeded');
+        return transcription;
+      } catch (googleError) {
+        console.warn('[AIOrchestrator] Google STT failed:', googleError instanceof Error ? googleError.message : googleError);
+        console.log('[AIOrchestrator] Falling back to Whisper...');
+      }
+    } else {
+      console.log(`[AIOrchestrator] Skipping Google STT (unsupported format: ${filename}), using Whisper...`);
+    }
+
+    // Fall back to OpenAI Whisper (handles M4A/AAC natively)
+    try {
+      const transcription = await WhisperTool.transcribe(audioBuffer, filename);
+      console.log('[AIOrchestrator] Whisper succeeded');
+      return transcription;
+    } catch (whisperError) {
+      console.error('[AIOrchestrator] Whisper failed:', whisperError instanceof Error ? whisperError.message : whisperError);
+      throw new Error('All STT providers failed. Unable to transcribe audio.');
+    }
   }
 
   // Text-to-speech with fallback chain: Google TTS (primary) -> ElevenLabs (fallback)
@@ -104,6 +132,7 @@ export class AIOrchestrator {
 
 // Re-export tools and chains for direct access if needed
 export { WhisperTool } from './tools/whisper.tool.js';
+export { GoogleSTTTool } from './tools/google-stt.tool.js';
 export { GoogleTTSTool } from './tools/google-tts.tool.js';
 export { ElevenLabsTool } from './tools/elevenlabs.tool.js';
 export { processOnboarding } from './chains/onboarding.chain.js';

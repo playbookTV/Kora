@@ -36,6 +36,7 @@ export default function OnboardingChat() {
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const audioPlayer = useRef<AudioPlayer | null>(null);
   const isRecordingRef = useRef(false); // Track recording state synchronously
+  const isProcessingRef = useRef(false); // Prevent duplicate processing
 
   useEffect(() => {
     // Set audio mode to allow recording
@@ -120,14 +121,24 @@ export default function OnboardingChat() {
   };
 
   const processUserAudio = async (uri: string) => {
+    // Prevent duplicate processing
+    if (isProcessingRef.current) {
+      console.log('[Onboarding] Already processing, skipping duplicate request');
+      return;
+    }
+    isProcessingRef.current = true;
+
     try {
       const text = await AIService.transcribe(uri);
+      console.log('[Onboarding] Transcription result:', text);
+
       const response = await AIService.generateResponse(text, {
         isOnboarding: true,
         step,
         currency: currency || 'NGN',
         collectedData,
       });
+      console.log('[Onboarding] AI response received:', response.text?.substring(0, 50));
 
       if (response.data) {
         handleDataExtraction(response.data);
@@ -136,8 +147,10 @@ export default function OnboardingChat() {
       setKoraText(response.text);
       await handleKoraSpeak(response.text);
     } catch (error) {
-      console.error(error);
+      console.error('[Onboarding] processUserAudio error:', error);
       setKoraText("I didn't quite catch that. Could you say it again?");
+    } finally {
+      isProcessingRef.current = false;
     }
   };
 

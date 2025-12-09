@@ -43,12 +43,12 @@ EXAMPLE RESPONSE:
 "Hey, I'm Kora—your money accountability partner. I help you pause before spending so you actually save. Takes about 2 minutes to set up. Ready?"
 
 OUTPUT FORMAT:
-{
+{{
   "response": "your spoken response",
   "nextStep": "INCOME",
   "shouldAdvance": false,
   "waitingFor": "user_confirmation"
-}
+}}
 
 If user confirms (yes, ready, let's go, sure, ok, etc.), set shouldAdvance: true.`,
 
@@ -69,19 +69,19 @@ EXTRACTION RULES:
 - Payday should be 1-31
 
 OUTPUT FORMAT:
-{
+{{
   "response": "your spoken response",
-  "extracted": {
-    "income": {
+  "extracted": {{
+    "income": {{
       "amount": number | null,
       "frequency": "monthly" | "biweekly" | "weekly" | null,
       "payday": number | null
-    }
-  },
+    }}
+  }},
   "nextStep": "INCOME" | "EXPENSES",
   "shouldAdvance": boolean,
   "waitingFor": "income_amount" | "income_frequency" | "payday" | null
-}`,
+}}`,
 
     EXPENSES: `## CURRENT STEP: EXPENSES
 
@@ -100,17 +100,17 @@ EXTRACTION RULES:
 - Due day is optional—only extract if explicitly mentioned
 
 OUTPUT FORMAT:
-{
+{{
   "response": "your spoken response",
-  "extracted": {
+  "extracted": {{
     "expenses": [
-      { "name": "string", "amount": number, "due_day": number | null }
+      {{ "name": "string", "amount": number, "due_day": number | null }}
     ]
-  },
+  }},
   "nextStep": "EXPENSES" | "BALANCE_PAYDAY",
   "shouldAdvance": boolean,
   "waitingFor": "expenses_list" | "expenses_confirmation" | null
-}
+}}
 
 Note: Accumulate expenses across messages. Don't replace—append new ones.`,
 
@@ -125,17 +125,17 @@ YOUR TASK:
 4. If they want to save: Ask how much per month
 
 OUTPUT FORMAT:
-{
+{{
   "response": "your spoken response",
-  "extracted": {
+  "extracted": {{
     "balance": number | null,
     "savingsGoal": number | null,
-    "upcomingBills": [{ "name": "string", "amount": number }] | null
-  },
+    "upcomingBills": [{{ "name": "string", "amount": number }}] | null
+  }},
   "nextStep": "BALANCE_PAYDAY" | "ANALYSIS",
   "shouldAdvance": boolean,
   "waitingFor": "balance" | "upcoming_bills" | "savings_intent" | "savings_amount" | null
-}`,
+}}`,
 
     ANALYSIS: `## CURRENT STEP: ANALYSIS
 
@@ -160,19 +160,19 @@ TONE:
 - End with something forward-looking
 
 OUTPUT FORMAT:
-{
+{{
   "response": "your spoken analysis",
-  "calculated": {
+  "calculated": {{
     "flexibleIncome": number,
     "totalFixedExpenses": number,
     "availableNow": number,
     "daysToPayday": number,
     "safeSpendToday": number,
     "monthlySavingsPossible": number | null
-  },
+  }},
   "nextStep": "COMPLETE",
   "shouldAdvance": true
-}`,
+}}`,
 
     BANK_PROMPT: `## CURRENT STEP: BANK_PROMPT
 
@@ -185,16 +185,25 @@ YOUR TASK:
 4. Accept yes/no gracefully
 
 OUTPUT FORMAT:
-{
+{{
   "response": "your spoken response",
   "nextStep": "COMPLETE" | "BANK_CONNECTION_FLOW",
   "shouldAdvance": boolean,
   "bankConnectionRequested": boolean,
   "waitingFor": "bank_decision" | null
-}`,
+}}`,
   };
 
   return stepPrompts[step] || stepPrompts.WELCOME;
+};
+
+/**
+ * Escapes curly braces in a string so LangChain doesn't interpret them as template variables.
+ * In LangChain prompt templates, `{` and `}` are used for variable interpolation.
+ * To include literal curly braces, they must be doubled: `{{` and `}}`.
+ */
+const escapeForLangChain = (str: string): string => {
+  return str.replace(/\{/g, '{{').replace(/\}/g, '}}');
 };
 
 export const createOnboardingPrompt = (
@@ -203,6 +212,9 @@ export const createOnboardingPrompt = (
   collectedData: Record<string, unknown>
 ) => {
   const currencySymbol = currency === 'NGN' ? '₦' : '£';
+
+  // Escape the JSON so LangChain doesn't interpret curly braces as template variables
+  const escapedCollectedData = escapeForLangChain(JSON.stringify(collectedData, null, 2));
 
   return ChatPromptTemplate.fromMessages([
     [
@@ -218,7 +230,7 @@ Current Day of Month: ${new Date().getDate()}
 ${getOnboardingStepPrompt(step, currency)}
 
 ## COLLECTED DATA SO FAR
-${JSON.stringify(collectedData, null, 2)}
+${escapedCollectedData}
 
 ## RESPONSE REQUIREMENTS
 

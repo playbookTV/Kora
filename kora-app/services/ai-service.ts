@@ -36,13 +36,14 @@ export class AIService {
 
       return response.data.data.transcription;
     } catch (error: any) {
-      console.error('Transcribe Error:', error);
+      console.error('Transcribe Error:', error?.message || error);
       // Log detailed error info
       if (error?.response) {
         console.error('Transcribe Error Status:', error.response.status);
-        console.error('Transcribe Error Data:', error.response.data);
+        console.error('Transcribe Error Data:', JSON.stringify(error.response.data));
       }
-      throw new Error('Failed to transcribe audio.');
+      const errorMsg = error?.response?.data?.error || error?.message || 'Failed to transcribe audio';
+      throw new Error(errorMsg);
     }
   }
 
@@ -72,6 +73,7 @@ export class AIService {
     const response = await apiClient.post('/ai/onboarding', {
       message: userText,
       step: context.step,
+      currency: context.currency || 'NGN',
       collectedData: context.collectedData || {},
     });
 
