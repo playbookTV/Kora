@@ -32,11 +32,13 @@ export default function OnboardingChat() {
   const [koraText, setKoraText] = useState(
     "Hi, I'm Kora. Pause. Breathe. I'm here to help you spend better. Let's get set up."
   );
+  const [userText, setUserText] = useState<string | null>(null); // Display transcribed text
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const audioPlayer = useRef<AudioPlayer | null>(null);
   const isRecordingRef = useRef(false); // Track recording state synchronously
   const isProcessingRef = useRef(false); // Prevent duplicate processing
+  const recordingStartTime = useRef<number>(0); // Track when recording started
 
   useEffect(() => {
     // Set audio mode to allow recording
@@ -74,6 +76,7 @@ export default function OnboardingChat() {
       console.log('[Onboarding] Starting recording...');
       audioRecorder.record();
       isRecordingRef.current = true;
+      recordingStartTime.current = Date.now();
       setIsRecording(true);
       console.log('[Onboarding] Recording started, isRecording:', audioRecorder.isRecording);
     } catch (err) {
@@ -85,6 +88,16 @@ export default function OnboardingChat() {
     console.log('[Onboarding] handleStopRecording called, isRecordingRef:', isRecordingRef.current);
     if (!isRecordingRef.current) {
       console.log('[Onboarding] Not recording (ref), returning early');
+      return;
+    }
+
+    // Check minimum recording duration (1 second)
+    const recordingDuration = Date.now() - recordingStartTime.current;
+    console.log('[Onboarding] Recording duration:', recordingDuration, 'ms');
+
+    if (recordingDuration < 1000) {
+      console.log('[Onboarding] Recording too short, ignoring');
+      // Keep recording - don't stop yet
       return;
     }
 
@@ -131,6 +144,16 @@ export default function OnboardingChat() {
     try {
       const text = await AIService.transcribe(uri);
       console.log('[Onboarding] Transcription result:', text);
+      setUserText(text); // Display what was captured
+
+      // Handle empty or too-short transcriptions
+      if (!text || text.trim().length < 2) {
+        console.log('[Onboarding] Transcription too short, asking user to repeat');
+        const retryMsg = "I didn't catch that. Could you hold the button a bit longer and speak clearly?";
+        setKoraText(retryMsg);
+        await handleKoraSpeak(retryMsg);
+        return;
+      }
 
       const response = await AIService.generateResponse(text, {
         isOnboarding: true,
@@ -250,6 +273,21 @@ export default function OnboardingChat() {
           </Text>
         </View>
 
+        {/* User's transcribed text */}
+        {userText && (
+          <View
+            marginT-s6
+            padding-s3
+            bg-grey60
+            br20
+            style={{ maxWidth: '80%' }}
+          >
+            <Text caption center textMuted>
+              You said: &ldquo;{userText}&rdquo;
+            </Text>
+          </View>
+        )}
+
         {/* Dynamic Visualizer */}
         <View
           marginT-s10
@@ -275,8 +313,8 @@ export default function OnboardingChat() {
           />
         ) : (
           <TouchableOpacity
-            onPressIn={handleStartRecording}
-            onPressOut={handleStopRecording}
+            onPressIn={() => { handleStartRecording(); }}
+            onPressOut={() => { handleStopRecording(); }}
             style={{
               width: 80,
               height: 80,

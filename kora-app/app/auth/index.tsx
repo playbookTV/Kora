@@ -13,13 +13,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/auth-store';
 import { useUserStore } from '@/store/user-store';
 import { BorderRadius, Shadows } from '@/constants/design-system';
+import { GoogleAuthAPI } from '@/services/api';
 
 export default function AuthScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { login, signup, isLoading, error, clearError, authMode, setAuthMode } = useAuthStore();
+  const { login, signup, signInWithGoogle, isLoading, error, clearError, authMode, setAuthMode } = useAuthStore();
   const { hasOnboarded } = useUserStore();
+
+  const isGoogleConfigured = GoogleAuthAPI.isConfigured();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,6 +74,20 @@ export default function AuthScreen() {
   const toggleAuthMode = () => {
     setAuthMode(isSignup ? 'login' : 'signup');
     clearError();
+  };
+
+  // Handle Google sign-in
+  const handleGoogleSignIn = async () => {
+    clearError();
+    const success = await signInWithGoogle();
+
+    if (success) {
+      if (hasOnboarded) {
+        router.replace('/');
+      } else {
+        router.replace('/onboarding');
+      }
+    }
   };
 
   return (
@@ -192,6 +209,33 @@ export default function AuthScreen() {
         ]}
       />
 
+      {/* Divider */}
+      {isGoogleConfigured && (
+        <View row centerV marginV-s5>
+          <View flex style={styles.divider} />
+          <Text caption textMuted marginH-s3>or</Text>
+          <View flex style={styles.divider} />
+        </View>
+      )}
+
+      {/* Google Sign-In Button */}
+      {isGoogleConfigured && (
+        <Button
+          label={isLoading ? 'Signing in...' : 'Continue with Google'}
+          disabled={isLoading}
+          onPress={handleGoogleSignIn}
+          backgroundColor={Colors.cardBG}
+          labelStyle={{
+            color: Colors.textDefault,
+            fontWeight: '600',
+            fontSize: 16,
+          }}
+          style={[
+            { height: 56, borderRadius: BorderRadius.large, borderWidth: 1, borderColor: Colors.border },
+          ]}
+        />
+      )}
+
       {/* Toggle Auth Mode */}
       <View center marginT-s6>
         <TouchableOpacity onPress={toggleAuthMode}>
@@ -233,5 +277,9 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 16,
     color: Colors.textDefault,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
   },
 });

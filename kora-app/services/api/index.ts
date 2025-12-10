@@ -10,6 +10,9 @@ export type { ApiResponse } from './client';
 export { AuthAPI } from './auth';
 export type { AuthUser, SignupResponse, LoginResponse, MeResponse } from './auth';
 
+export { GoogleAuthAPI, getRedirectUri } from './google-auth';
+export type { GoogleAuthResult } from './google-auth';
+
 export { AIAPI } from './ai';
 export type {
   AIResponse,

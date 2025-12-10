@@ -8,7 +8,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthAPI, TokenStorage } from '@/services/api';
+import { AuthAPI, GoogleAuthAPI, TokenStorage } from '@/services/api';
 import type { AuthUser } from '@/services/api';
 
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
@@ -30,6 +30,7 @@ interface AuthState {
   setPendingEmail: (email: string) => void;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (email: string, password: string, name?: string) => Promise<boolean>;
+  signInWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   clearError: () => void;
@@ -103,6 +104,35 @@ export const useAuthStore = create<AuthState>()(
           return true;
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Signup failed';
+          set({ error: message, isLoading: false });
+          return false;
+        }
+      },
+
+      /**
+       * Sign in with Google OAuth
+       */
+      signInWithGoogle: async () => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const result = await GoogleAuthAPI.signIn();
+
+          if (!result.success) {
+            set({ error: result.error || 'Google sign-in failed', isLoading: false });
+            return false;
+          }
+
+          // Fetch user data after successful OAuth
+          const { user } = await AuthAPI.me();
+          set({
+            user,
+            status: 'authenticated',
+            isLoading: false,
+          });
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Google sign-in failed';
           set({ error: message, isLoading: false });
           return false;
         }

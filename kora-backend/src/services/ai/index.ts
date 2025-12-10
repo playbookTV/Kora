@@ -12,34 +12,27 @@ import type {
 } from '../../types/index.js';
 
 export class AIOrchestrator {
-  // Speech-to-text with fallback chain: Google STT (primary) -> Whisper (fallback)
-  // Note: Google STT doesn't support M4A/AAC, so we skip directly to Whisper for those formats
+  // Speech-to-text with fallback chain: Google STT v2 (primary) -> Whisper (fallback)
+  // Google STT v2 with auto_decoding_config supports M4A/AAC natively
   static async transcribe(audioBuffer: Buffer, filename?: string): Promise<string> {
-    // Check if Google STT supports this format
-    const googleSupportsFormat = GoogleSTTTool.isFormatSupported(filename);
-
-    // Try Google Cloud STT first (primary) - only if format is supported
-    if (googleSupportsFormat) {
-      try {
-        console.log('[AIOrchestrator] Attempting Google Cloud STT (primary)...');
-        const transcription = await GoogleSTTTool.transcribe(audioBuffer, filename);
-        console.log('[AIOrchestrator] Google STT succeeded');
-        return transcription;
-      } catch (googleError) {
-        console.warn('[AIOrchestrator] Google STT failed:', googleError instanceof Error ? googleError.message : googleError);
-        console.log('[AIOrchestrator] Falling back to Whisper...');
-      }
-    } else {
-      console.log(`[AIOrchestrator] Skipping Google STT (unsupported format: ${filename}), using Whisper...`);
+    // Try Google Cloud STT v2 first (primary)
+    try {
+      console.log('[AIOrchestrator] Attempting Google Cloud STT v2 (primary)...');
+      const transcription = await GoogleSTTTool.transcribe(audioBuffer, filename);
+      console.log('[AIOrchestrator] Google STT v2 succeeded');
+      return transcription;
+    } catch (googleError) {
+      console.warn('[AIOrchestrator] Google STT v2 failed:', googleError instanceof Error ? googleError.message : googleError);
+      console.log('[AIOrchestrator] Falling back to Whisper...');
     }
 
-    // Fall back to OpenAI Whisper (handles M4A/AAC natively)
+    // Fall back to OpenAI Whisper
     try {
       const transcription = await WhisperTool.transcribe(audioBuffer, filename);
-      console.log('[AIOrchestrator] Whisper succeeded');
+      console.log('[AIOrchestrator] Whisper fallback succeeded');
       return transcription;
     } catch (whisperError) {
-      console.error('[AIOrchestrator] Whisper failed:', whisperError instanceof Error ? whisperError.message : whisperError);
+      console.error('[AIOrchestrator] Whisper fallback failed:', whisperError instanceof Error ? whisperError.message : whisperError);
       throw new Error('All STT providers failed. Unable to transcribe audio.');
     }
   }

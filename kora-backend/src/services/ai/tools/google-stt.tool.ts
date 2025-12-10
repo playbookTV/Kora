@@ -1,23 +1,30 @@
-import { SpeechClient, protos } from '@google-cloud/speech';
+import { v2 } from '@google-cloud/speech';
 import { env } from '../../../config/env.js';
 
 /**
- * Google Cloud Speech-to-Text Tool
+ * Google Cloud Speech-to-Text Tool (v2 API)
  *
- * Uses the official Google Cloud Speech SDK with service account authentication.
- * Docs: https://cloud.google.com/speech-to-text/docs/quickstart-client-libraries
+ * Uses the v2 API with auto_decoding_config for automatic format detection.
+ * This enables native support for M4A/AAC files without transcoding.
  *
- * Authentication:
- * - Uses GOOGLE_CLOUD_CREDENTIALS env var (same as TTS)
+ * Supported formats with auto-detection:
+ * - WAV (LINEAR16, MULAW, ALAW)
+ * - FLAC
+ * - MP3
+ * - OGG_OPUS
+ * - WEBM_OPUS
+ * - MP4_AAC, M4A_AAC, MOV_AAC (AAC in containers)
+ * - AMR, AMR-WB
+ *
+ * Docs: https://cloud.google.com/speech-to-text/v2/docs
  */
 
-type IRecognizeRequest = protos.google.cloud.speech.v1.IRecognizeRequest;
+// Singleton client instance and project info
+let client: v2.SpeechClient | null = null;
+let projectId: string | null = null;
 
-// Singleton client instance
-let client: SpeechClient | null = null;
-
-const getClient = (): SpeechClient => {
-  if (client) return client;
+const getClient = (): { client: v2.SpeechClient; projectId: string } => {
+  if (client && projectId) return { client, projectId };
 
   // Check for credentials JSON in env (for Railway/cloud deployments)
   if (env.GOOGLE_CLOUD_CREDENTIALS) {
@@ -48,9 +55,11 @@ const getClient = (): SpeechClient => {
         throw new Error('Missing required fields in credentials (type, project_id, private_key)');
       }
 
-      client = new SpeechClient({ credentials });
-      console.log('[GoogleSTT] Initialized with credentials for project:', credentials.project_id);
-      return client;
+      // Use v2 SpeechClient
+      client = new v2.SpeechClient({ credentials });
+      projectId = credentials.project_id as string;
+      console.log('[GoogleSTT] Initialized v2 client for project:', projectId);
+      return { client, projectId: projectId as string };
     } catch (parseError) {
       console.error('[GoogleSTT] Failed to parse GOOGLE_CLOUD_CREDENTIALS:', parseError);
       throw new Error('Invalid GOOGLE_CLOUD_CREDENTIALS format. Use raw JSON or base64-encoded JSON.');
@@ -61,26 +70,25 @@ const getClient = (): SpeechClient => {
   throw new Error('GOOGLE_CLOUD_CREDENTIALS not configured');
 };
 
-// Formats that Google Cloud Speech-to-Text v1 does NOT support natively
-// M4A (AAC in MP4 container), MP4, and AAC require transcoding
-const UNSUPPORTED_FORMATS = ['.m4a', '.mp4', '.aac', '.m4b', '.m4p'];
-
 export class GoogleSTTTool {
   /**
-   * Check if a file format is supported by Google Cloud STT
+   * Check if a file format is supported by Google Cloud STT v2
+   * With v2's auto_decoding_config, all common formats including M4A are supported
    * @param filename - The filename to check
-   * @returns true if supported, false otherwise
+   * @returns true (v2 supports all common formats via auto-detection)
    */
-  static isFormatSupported(filename?: string): boolean {
-    if (!filename) return true; // Let Google try to auto-detect
-    const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-    return !UNSUPPORTED_FORMATS.includes(ext);
+  static isFormatSupported(_filename?: string): boolean {
+    // v2 API with auto_decoding_config supports all common audio formats
+    // including M4A, MP4, AAC, WAV, MP3, FLAC, OGG, WEBM
+    return true;
   }
 
   /**
-   * Transcribe audio using Google Cloud Speech-to-Text
+   * Transcribe audio using Google Cloud Speech-to-Text v2 API
+   * Uses auto_decoding_config for automatic format detection (supports M4A/AAC)
+   *
    * @param audioBuffer - The audio buffer to transcribe
-   * @param filename - Optional filename to determine audio format
+   * @param filename - Optional filename (used for logging only with v2)
    */
   static async transcribe(audioBuffer: Buffer, filename?: string): Promise<string> {
     // Validate input
@@ -88,53 +96,32 @@ export class GoogleSTTTool {
       throw new Error('Audio buffer is required for transcription');
     }
 
-    // Check if format is supported
-    if (!this.isFormatSupported(filename)) {
-      const ext = filename?.substring(filename.lastIndexOf('.')) || 'unknown';
-      throw new Error(`Google STT: Unsupported format ${ext}. Use Whisper fallback for M4A/AAC files.`);
-    }
-
     console.log(`[GoogleSTT] Transcribing ${audioBuffer.length} bytes, filename: ${filename || 'unknown'}`);
 
     try {
-      const sttClient = getClient();
+      const { client: sttClient, projectId: project } = getClient();
 
-      // Determine encoding based on filename
-      let encoding: protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding;
-      let sampleRateHertz = 48000; // Default for most mobile recordings
-
-      if (filename?.endsWith('.wav')) {
-        encoding = protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.LINEAR16;
-      } else if (filename?.endsWith('.flac')) {
-        encoding = protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.FLAC;
-      } else if (filename?.endsWith('.ogg') || filename?.endsWith('.opus')) {
-        encoding = protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.OGG_OPUS;
-      } else if (filename?.endsWith('.mp3')) {
-        encoding = protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.MP3;
-      } else if (filename?.endsWith('.webm')) {
-        encoding = protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.WEBM_OPUS;
-      } else {
-        // Let Google auto-detect
-        encoding = protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.ENCODING_UNSPECIFIED;
-      }
-
-      const request: IRecognizeRequest = {
-        audio: {
-          content: audioBuffer.toString('base64'),
-        },
+      // v2 API request with auto_decoding_config
+      // This automatically detects encoding, sample rate, and channels
+      const request = {
+        // Use the default recognizer (no need to create one)
+        recognizer: `projects/${project}/locations/global/recognizers/_`,
         config: {
-          encoding,
-          sampleRateHertz,
-          languageCode: 'en-US',
-          // Enable automatic punctuation
-          enableAutomaticPunctuation: true,
-          // Use enhanced model for better accuracy
-          model: 'latest_long',
-          // Alternative languages to detect
-          alternativeLanguageCodes: ['en-GB', 'en-NG'],
+          // Auto-detect encoding - supports M4A, AAC, MP3, WAV, FLAC, OGG, WEBM
+          autoDecodingConfig: {},
+          // Language configuration
+          languageCodes: ['en-US', 'en-GB'],
+          // Model selection - 'long' is best for general audio
+          model: 'long',
+          // Features
+          features: {
+            enableAutomaticPunctuation: true,
+          },
         },
+        content: audioBuffer,
       };
 
+      // Call recognize (synchronous recognition for short audio)
       const [response] = await sttClient.recognize(request);
 
       if (!response.results || response.results.length === 0) {
