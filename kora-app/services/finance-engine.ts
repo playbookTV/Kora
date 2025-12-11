@@ -38,22 +38,54 @@ export const FinanceEngine = {
      * @param daysToPayday Number of days until payday
      * @returns Safe Spend Amount
      */
-    calculateSafeSpend: (balance: number, fixedExpenses: number, daysToPayday: number): number => {
-        // Simplified Logic: Assume fixed expenses are treated as a bulk deduction for the month
-        // In a real app, we'd check which expenses are *already paid* vs *pending*.
-        // For MVP/Hackathon: We deduct the FULL fixed expenses from balance if daysToPayday > 15 (assuming early in month),
-        // or a pro-rated amount? 
-        // Better yet, for MVP: Let's assume 'Balance' is 'Spending Money Left'.
-        // BUT, the spec says "Safe Spend = (Balance - Fixed Expenses) / Days".
-        // Let's stick to the spec formula.
+    /**
+     * Calculate total amount of bills due between TODAY and PAYDAY
+     */
+    calculateUpcomingBills: (expenses: { dueDay?: number | null, amount: number }[], paydayDay: number): number => {
+        const today = new Date();
+        const currentDay = today.getDate();
+        let upcomingTotal = 0;
 
-        // Edge Case: If daysToPayday is 0 or 1, Safe Spend is Balance.
+        for (const expense of expenses) {
+            if (!expense.dueDay) continue;
+
+            if (currentDay < paydayDay) {
+                // Same month window
+                if (expense.dueDay > currentDay && expense.dueDay < paydayDay) {
+                    upcomingTotal += expense.amount;
+                }
+            } else {
+                // Month wrap window
+                if (expense.dueDay > currentDay) {
+                    upcomingTotal += expense.amount;
+                } else if (expense.dueDay < paydayDay) {
+                    upcomingTotal += expense.amount;
+                }
+            }
+        }
+        return upcomingTotal;
+    },
+
+    /**
+     * Calculate Safe Spend Today.
+     * Formula: (Current Balance - Upcoming Bills) / Days to Payday
+     */
+    calculateSafeSpend: (balance: number, fixedExpenses: { dueDay?: number | null, amount: number }[], daysToPayday: number, paydayDay: number): number => {
         if (daysToPayday <= 1) return balance;
 
-        const effectiveBalance = balance - fixedExpenses;
+        const upcomingBills = FinanceEngine.calculateUpcomingBills(fixedExpenses, paydayDay);
+        const effectiveBalance = balance - upcomingBills;
 
         if (effectiveBalance <= 0) return 0;
 
         return Math.floor(effectiveBalance / daysToPayday);
+    },
+
+    /**
+     * Calculate Flexible Remaining.
+     * Formula: Income - Total Fixed Expenses - Spent This Month
+     */
+    calculateFlexibleRemaining: (income: number, totalFixedExpenses: number, spentThisMonth: number): number => {
+        return income - totalFixedExpenses - spentThisMonth;
     }
 };

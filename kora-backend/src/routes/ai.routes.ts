@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { AIOrchestrator } from '../services/ai/index.js';
 import { UserService } from '../services/user.service.js';
 import { TransactionService } from '../services/transaction.service.js';
+import { FinanceService } from '../services/finance.service.js';
 import {
   chatRequestSchema,
   onboardingRequestSchema,
@@ -10,42 +11,7 @@ import {
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import type { AuthenticatedRequest, OnboardingStep, Currency } from '../types/index.js';
 
-// Helper to calculate finance state
-const calculateFinanceState = async (userId: string, accessToken: string) => {
-  const profile = await UserService.getProfile(userId, accessToken);
-  const expenses = await UserService.getFixedExpenses(userId, accessToken);
-  const stats = await TransactionService.getStats(userId, accessToken);
-
-  const totalFixedExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const flexibleIncome = (profile.income || 0) - totalFixedExpenses;
-
-  // Calculate days to payday
-  const today = new Date();
-  const currentDay = today.getDate();
-  const payday = profile.payday || 1;
-  let daysToPayday: number;
-
-  if (currentDay < payday) {
-    daysToPayday = payday - currentDay;
-  } else {
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, payday);
-    daysToPayday = Math.ceil((nextMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  }
-
-  // Calculate safe spend
-  const availableNow = profile.current_balance || 0;
-  const safeSpendToday = daysToPayday > 0 ? Math.floor(availableNow / daysToPayday) : availableNow;
-
-  return {
-    profile,
-    totalFixedExpenses,
-    flexibleIncome,
-    daysToPayday,
-    safeSpendToday,
-    spentToday: stats.spentToday,
-    flexibleRemaining: flexibleIncome - stats.totalSpent,
-  };
-};
+// Helper removed in favor of FinanceService.calculateFinanceState
 
 export async function aiRoutes(fastify: FastifyInstance) {
   // POST /ai/tts - Text-to-speech conversion (PUBLIC - no auth required)
@@ -153,7 +119,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const financeState = await calculateFinanceState(user.id, accessToken);
+      const financeState = await FinanceService.calculateFinanceState(user.id, accessToken);
 
       const response = await AIOrchestrator.handleConversation(result.data.message, {
         currency: financeState.profile.currency as Currency,
@@ -204,36 +170,36 @@ export async function aiRoutes(fastify: FastifyInstance) {
       }
 
       const buffer = await data.toBuffer();
-      const financeState = await calculateFinanceState(user.id, accessToken);
+      const financeState = await FinanceService.calculateFinanceState(user.id, accessToken);
 
       const result = await AIOrchestrator.processVoice(buffer, {
         isOnboarding: !financeState.profile.has_onboarded,
         onboardingContext: !financeState.profile.has_onboarded
           ? {
-              step: 'WELCOME' as OnboardingStep,
-              currency: financeState.profile.currency as Currency,
-              collectedData: {},
-            }
+            step: 'WELCOME' as OnboardingStep,
+            currency: financeState.profile.currency as Currency,
+            collectedData: {},
+          }
           : undefined,
         conversationContext: financeState.profile.has_onboarded
           ? {
-              currency: financeState.profile.currency as Currency,
-              userProfile: {
-                name: financeState.profile.name || undefined,
-                income: financeState.profile.income || 0,
-                payday: financeState.profile.payday || 1,
-                fixedExpenses: financeState.totalFixedExpenses,
-                currentBalance: financeState.profile.current_balance || 0,
-                savingsGoal: financeState.profile.savings_goal || undefined,
-              },
-              financialState: {
-                safeSpendToday: financeState.safeSpendToday,
-                daysToPayday: financeState.daysToPayday,
-                spentToday: financeState.spentToday,
-                upcomingBills: 0,
-                flexibleRemaining: financeState.flexibleRemaining,
-              },
-            }
+            currency: financeState.profile.currency as Currency,
+            userProfile: {
+              name: financeState.profile.name || undefined,
+              income: financeState.profile.income || 0,
+              payday: financeState.profile.payday || 1,
+              fixedExpenses: financeState.totalFixedExpenses,
+              currentBalance: financeState.profile.current_balance || 0,
+              savingsGoal: financeState.profile.savings_goal || undefined,
+            },
+            financialState: {
+              safeSpendToday: financeState.safeSpendToday,
+              daysToPayday: financeState.daysToPayday,
+              spentToday: financeState.spentToday,
+              upcomingBills: 0,
+              flexibleRemaining: financeState.flexibleRemaining,
+            },
+          }
           : undefined,
       });
 

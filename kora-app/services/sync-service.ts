@@ -112,7 +112,7 @@ export const SyncService = {
         await UsersAPI.createExpense({
           name: expense.name,
           amount: expense.amount,
-          due_day: expense.dueDay,
+          due_day: expense.dueDay ?? undefined,
         });
       }
 
@@ -137,7 +137,17 @@ export const SyncService = {
 
       // Add local transactions first
       for (const t of localTransactions) {
-        mergedMap.set(t.id, t);
+        // Only add if it doesn't look like it's already in the backend list
+        // (Poor man's deduplication for 'local_' ids)
+        const isDuplicate = transactions.some(bt =>
+          bt.amount === t.amount &&
+          bt.description === t.description &&
+          new Date(bt.date).toDateString() === new Date(t.date).toDateString()
+        );
+
+        if (!isDuplicate || !t.id.startsWith('local_')) {
+          mergedMap.set(t.id, t);
+        }
       }
 
       // Override/add backend transactions

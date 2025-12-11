@@ -81,6 +81,7 @@ export interface OnboardingContext {
     payday?: number;
   };
   userMessage?: string;
+  history?: string[];
 }
 
 export interface ConversationContext {
@@ -108,6 +109,7 @@ export interface ConversationContext {
     riskScore: number;
   };
   userMessage: string;
+  history?: { role: 'user' | 'assistant', content: string }[];
   detectedEmotion?: string;
   extractedAmount?: number;
   extractedItem?: string;

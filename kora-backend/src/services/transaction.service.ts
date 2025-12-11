@@ -119,30 +119,59 @@ export class TransactionService {
 
   static async getStats(userId: string, accessToken: string) {
     const supabase = createAuthenticatedClient(accessToken);
-
-    // Get transactions from last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const startDate = thirtyDaysAgo.toISOString();
+    const endDate = new Date().toISOString();
+
+    // Call database function for aggregated stats
+    // @ts-ignore - RPC function exists in DB but not in types yet
+    const { data: statsData, error } = await (supabase as any)
+      .rpc('get_transaction_stats', {
+        p_user_id: userId,
+        p_start_date: startDate,
+        p_end_date: endDate
+      });
+
+    const stats = statsData as any;
+
+    if (error) {
+      console.error('Stats RPC error:', error);
+      // Fallback to manual calculation if RPC fails or isn't deployed yet
+      return this.getStatsFallback(userId, accessToken, startDate);
+    }
+
+    return {
+      totalSpent: stats.total_spent || 0,
+      avgDailySpend: Math.round(stats.daily_average || 0),
+      transactionCount: stats.transaction_count || 0,
+      spentToday: stats.spent_today || 0,
+      topCategories: stats.top_categories || [],
+      period: {
+        start: startDate,
+        end: endDate,
+      },
+    };
+  }
+
+  // Fallback method (keeping the old logic just in case)
+  private static async getStatsFallback(userId: string, accessToken: string, startDate: string) {
+    const supabase = createAuthenticatedClient(accessToken);
 
     const { data, error } = await supabase
       .from('transactions')
-      .select('*')
+      .select('amount, category, date') // Select only needed fields
       .eq('user_id', userId)
-      .gte('date', thirtyDaysAgo.toISOString())
+      .gte('date', startDate)
       .order('date', { ascending: false });
 
-    if (error) {
-      throw new Error('Failed to fetch transaction stats');
-    }
+    if (error) throw new Error('Failed to fetch transaction stats');
 
     const transactions = data as Transaction[];
-
-    // Calculate stats
     const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
     const avgDailySpend = totalSpent / 30;
     const transactionCount = transactions.length;
 
-    // Group by category
     const categoryTotals = transactions.reduce(
       (acc, t) => {
         acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -156,7 +185,6 @@ export class TransactionService {
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
 
-    // Get today's spending
     const today = new Date().toISOString().split('T')[0];
     const spentToday = transactions
       .filter((t) => t.date.startsWith(today))
@@ -169,7 +197,7 @@ export class TransactionService {
       spentToday,
       topCategories,
       period: {
-        start: thirtyDaysAgo.toISOString(),
+        start: startDate,
         end: new Date().toISOString(),
       },
     };

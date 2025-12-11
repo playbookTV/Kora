@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTransactionStore } from '../store/transaction-store';
 import { useUserStore } from '../store/user-store';
 import { AIService } from '../services/ai-service';
+import { FinanceEngine } from '../services/finance-engine';
 import { BorderRadius, Shadows } from '../constants/design-system';
 
 // Intent types from conversation prompts
@@ -114,12 +115,12 @@ export default function VoiceSession() {
       const text = await AIService.transcribe(uri);
 
       // Calculate today's spending from transactions
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date();
       const spentToday = transactions
-        .filter(t => t.date.startsWith(today))
+        .filter(t => new Date(t.date).toDateString() === today.toDateString())
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // Calculate total fixed expenses
+      // Calculate total fixed expenses (for flexible remaining calculation)
       const totalFixedExpenses = fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
       // Calculate flexible remaining (income - fixed expenses - spent this month)
@@ -128,7 +129,20 @@ export default function VoiceSession() {
       const spentThisMonth = transactions
         .filter(t => new Date(t.date) >= monthStart)
         .reduce((sum, t) => sum + t.amount, 0);
-      const flexibleRemaining = (income || 0) - totalFixedExpenses - spentThisMonth;
+      
+      const flexibleRemaining = FinanceEngine.calculateFlexibleRemaining(income || 0, totalFixedExpenses, spentThisMonth);
+
+      // Calculate precise Safe Spend for context
+      const days = FinanceEngine.calculateDaysToPayday(payday || 1);
+      const safeSpend = FinanceEngine.calculateSafeSpend(
+        currentBalance || 0, 
+        fixedExpenses, 
+        days, 
+        payday || 1
+      );
+      
+      // Calculate upcoming bills for context
+      const upcomingBills = FinanceEngine.calculateUpcomingBills(fixedExpenses, payday || 1);
 
       const context = {
         currency: currency || 'NGN',
@@ -141,10 +155,10 @@ export default function VoiceSession() {
           savingsGoal: savingsGoal || undefined,
         },
         financialState: {
-          safeSpendToday: safeSpendToday || 0,
-          daysToPayday: daysToPayday || 1,
+          safeSpendToday: safeSpend,
+          daysToPayday: days,
           spentToday,
-          upcomingBills: 0, // TODO: Calculate from fixed expenses with due dates
+          upcomingBills: upcomingBills, 
           flexibleRemaining,
         },
       };
