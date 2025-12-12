@@ -323,3 +323,106 @@ This fix resolves:
 5. **Test the entire flow** - bugs often appear in later steps, not just the first one
 
 
+---
+
+# Bug Fix #7: Conversation Prompts Template Error
+
+## Issue Summary
+**Error**: `Single '}' in template` in conversation AI chain  
+**Location**: `kora-backend/src/services/ai/prompts/conversation.prompts.ts`  
+**Impact**: Conversation AI (post-onboarding chat) completely broken
+
+## Root Cause Analysis
+
+### The Problem
+**Same issue as Bug #1** - the conversation prompts contain extensive JSON examples that weren't escaped:
+
+```typescript
+OUTPUT FORMAT:
+{
+  "response": "your spoken response",
+  "analysis": {
+    "amount": number,
+    "riskLevel": "low" | "medium" | "high"
+  }
+}
+```
+
+The conversation prompts have **5 different intent-specific prompts**, each with JSON output examples:
+1. `SPEND_DECISION` - Complex analysis object
+2. `SAFE_SPEND_CHECK` - Financial state data
+3. `EMOTIONAL` - Emotional acknowledgment structure
+4. `POST_SPEND` - Transaction logging format
+5. `GENERAL` - Clarification structure
+
+All of these contained unescaped curly braces that LangChain interpreted as template variables.
+
+### Why It Failed
+- Conversation prompts are used **after** onboarding completes
+- They contain even more JSON examples than onboarding prompts
+- No escaping was applied to any of the prompt templates
+- Both `createConversationPrompt` and `createIntentClassifierPrompt` were affected
+
+## The Fix
+
+### 1. Added Escape Function (Same as Onboarding)
+```typescript
+const escapeForLangChain = (str: string): string => {
+  return str.replace(/\{/g, '{{').replace(/\}/g, '}}');
+};
+```
+
+### 2. Applied to Conversation Prompt
+```typescript
+export const createConversationPrompt = (context: Record<string, unknown>) => {
+  const systemMessage = `${KORA_CORE_SYSTEM}
+    ... (includes JSON examples from getIntentPrompt)
+  `;
+
+  const escapedSystemMessage = escapeForLangChain(systemMessage);
+
+  return ChatPromptTemplate.fromMessages([
+    ['system', escapedSystemMessage],
+    ['human', '{userMessage}'],
+  ]);
+};
+```
+
+### 3. Applied to Intent Classifier
+```typescript
+export const createIntentClassifierPrompt = () => {
+  const escapedPrompt = escapeForLangChain(INTENT_CLASSIFIER_PROMPT);
+  
+  return ChatPromptTemplate.fromMessages([
+    ['system', escapedPrompt],
+    ['human', '{message}'],
+  ]);
+};
+```
+
+## Testing
+- ✅ Backend build passes
+- 🔄 Deployment to Railway
+- 🔄 Needs live testing with conversation flow
+
+## Impact
+This fix enables the entire post-onboarding conversation system:
+1. **Spend decisions** - "Should I buy this?" queries
+2. **Safe spend checks** - "How much can I spend?" queries
+3. **Emotional support** - Stress/anxiety conversations
+4. **Post-spend logging** - "I just spent X" tracking
+5. **General chat** - Greetings and questions about Kora
+
+## Files Changed
+- `kora-backend/src/services/ai/prompts/conversation.prompts.ts`
+  - Added `escapeForLangChain` function
+  - Modified `createConversationPrompt` to escape system message
+  - Modified `createIntentClassifierPrompt` to escape prompt
+
+## Lessons Learned
+1. **Any prompt with JSON examples needs escaping** - not just onboarding
+2. **Test all AI chains** - fixing one doesn't mean others work
+3. **Reusable escape function** - should be extracted to shared utility
+4. **Template syntax is strict** - LangChain requires `{{` and `}}` for literals
+5. **Systematic approach needed** - search entire codebase for similar patterns
+

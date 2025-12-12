@@ -217,14 +217,20 @@ OUTPUT FORMAT:
   return prompts[intent] || prompts.GENERAL;
 };
 
+/**
+ * Escapes curly braces in a string so LangChain doesn't interpret them as template variables.
+ * In LangChain prompt templates, `{` and `}` are used for variable interpolation.
+ * To include literal curly braces, they must be doubled: `{{` and `}}`.
+ */
+const escapeForLangChain = (str: string): string => {
+  return str.replace(/\{/g, '{{').replace(/\}/g, '}}');
+};
+
 export const createConversationPrompt = (context: Record<string, unknown>) => {
   const currencySymbol = (context.currency as string) === 'NGN' ? '₦' : '£';
   const formatMoney = (n: number) => `${currencySymbol}${n.toLocaleString()}`;
 
-  return ChatPromptTemplate.fromMessages([
-    [
-      'system',
-      `${KORA_CORE_SYSTEM}
+  const systemMessage = `${KORA_CORE_SYSTEM}
 
 ## USER CONTEXT
 
@@ -249,15 +255,23 @@ ${getIntentPrompt(context.intent as string, context)}
 2. Response must be speakable (no special characters)
 3. Numbers formatted with currency symbol
 4. Maximum 60 words in response
-5. Include all fields specified in output format`,
-    ],
+5. Include all fields specified in output format`;
+
+  // Escape the system message to prevent LangChain from interpreting JSON examples as template variables
+  const escapedSystemMessage = escapeForLangChain(systemMessage);
+
+  return ChatPromptTemplate.fromMessages([
+    ['system', escapedSystemMessage],
     ['human', '{userMessage}'],
   ]);
 };
 
 export const createIntentClassifierPrompt = () => {
+  // Escape the classifier prompt as well
+  const escapedPrompt = escapeForLangChain(INTENT_CLASSIFIER_PROMPT);
+
   return ChatPromptTemplate.fromMessages([
-    ['system', INTENT_CLASSIFIER_PROMPT],
+    ['system', escapedPrompt],
     ['human', '{message}'],
   ]);
 };
