@@ -34,29 +34,7 @@ export const onboardingRequestSchema = z.object({
   message: z.string().min(1).max(2000),
   step: onboardingStepSchema,
   currency: currencySchema.optional(),
-  collectedData: z
-    .object({
-      income: z
-        .object({
-          amount: z.number(),
-          frequency: z.string(),
-          payday: z.number().optional(),
-        })
-        .optional(),
-      expenses: z
-        .array(
-          z.object({
-            name: z.string(),
-            amount: z.number(),
-            due_day: z.number().optional(),
-          })
-        )
-        .optional(),
-      balance: z.number().optional(),
-      savingsGoal: z.number().optional(),
-      payday: z.number().optional(),
-    })
-    .optional(),
+  collectedData: z.record(z.string(), z.any()).optional(),
 });
 
 export const ttsRequestSchema = z.object({

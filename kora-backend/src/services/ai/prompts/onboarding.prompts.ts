@@ -232,13 +232,19 @@ ${getOnboardingStepPrompt(step, currency)}
 ## COLLECTED DATA SO FAR
 ${escapedCollectedData}
 
+## CRITICAL OUTPUT RULES
+1. You must output ONLY valid JSON.
+2. Do not use markdown blocks (no \`\`\`json).
+3. Do not include any text before or after the JSON.
+4. If you break these rules, the system will crash.
+
 ## RESPONSE REQUIREMENTS
 
-1. Return valid JSON only—no markdown, no explanation outside JSON
-2. Response text should be speakable (no special characters, abbreviations spelled out)
+1. Return valid JSON only
+2. Response text should be speakable (no special characters except currency symbol)
 3. Numbers in response should use local formatting (${currencySymbol}450,000 not 450000)
 4. Keep response under 60 words
-5. Always include all required fields in output format`,
+5. Always include all required fields`,
     ],
     ['human', '{userMessage}'],
   ]);

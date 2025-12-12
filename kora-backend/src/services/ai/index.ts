@@ -12,27 +12,26 @@ import type {
 } from '../../types/index.js';
 
 export class AIOrchestrator {
-  // Speech-to-text with fallback chain: Google STT v2 (primary) -> Whisper (fallback)
-  // Google STT v2 with auto_decoding_config supports M4A/AAC natively
+  // Speech-to-text with fallback chain: Whisper (primary) -> Google STT v2 (fallback)
   static async transcribe(audioBuffer: Buffer, filename?: string): Promise<string> {
-    // Try Google Cloud STT v2 first (primary)
+    // Try OpenAI Whisper first (primary)
     try {
-      console.log('[AIOrchestrator] Attempting Google Cloud STT v2 (primary)...');
-      const transcription = await GoogleSTTTool.transcribe(audioBuffer, filename);
-      console.log('[AIOrchestrator] Google STT v2 succeeded');
-      return transcription;
-    } catch (googleError) {
-      console.warn('[AIOrchestrator] Google STT v2 failed:', googleError instanceof Error ? googleError.message : googleError);
-      console.log('[AIOrchestrator] Falling back to Whisper...');
-    }
-
-    // Fall back to OpenAI Whisper
-    try {
+      console.log('[AIOrchestrator] Attempting OpenAI Whisper (primary)...');
       const transcription = await WhisperTool.transcribe(audioBuffer, filename);
-      console.log('[AIOrchestrator] Whisper fallback succeeded');
+      console.log('[AIOrchestrator] Whisper succeeded');
       return transcription;
     } catch (whisperError) {
-      console.error('[AIOrchestrator] Whisper fallback failed:', whisperError instanceof Error ? whisperError.message : whisperError);
+      console.warn('[AIOrchestrator] Whisper failed:', whisperError instanceof Error ? whisperError.message : whisperError);
+      console.log('[AIOrchestrator] Falling back to Google STT v2...');
+    }
+
+    // Fall back to Google Cloud STT v2
+    try {
+      const transcription = await GoogleSTTTool.transcribe(audioBuffer, filename);
+      console.log('[AIOrchestrator] Google STT v2 fallback succeeded');
+      return transcription;
+    } catch (googleError) {
+      console.error('[AIOrchestrator] Google STT fallback also failed:', googleError instanceof Error ? googleError.message : googleError);
       throw new Error('All STT providers failed. Unable to transcribe audio.');
     }
   }
