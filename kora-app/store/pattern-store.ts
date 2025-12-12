@@ -7,7 +7,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { mmkvStorage } from './user-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTransactionStore } from './transaction-store';
 
 export interface SpendingPattern {
@@ -257,7 +257,7 @@ export const usePatternStore = create<PatternState>()(
     }),
     {
       name: 'pattern-storage',
-      storage: createJSONStorage(() => mmkvStorage),
+      storage: createJSONStorage(() => AsyncStorage),
     }
   )
 );

@@ -7,7 +7,8 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { mmkvStorage , useUserStore } from './user-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUserStore } from './user-store';
 import { useTransactionStore } from './transaction-store';
 import { usePatternStore } from './pattern-store';
 
@@ -172,7 +173,7 @@ export const useInsightsStore = create<InsightsState>()(
     }),
     {
       name: 'insights-storage',
-      storage: createJSONStorage(() => mmkvStorage),
+      storage: createJSONStorage(() => AsyncStorage),
     }
   )
 );

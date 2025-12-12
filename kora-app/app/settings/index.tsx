@@ -10,8 +10,6 @@ import { useUserStore } from '../../store/user-store';
 import { useTransactionStore } from '../../store/transaction-store';
 import { BorderRadius, Shadows } from '../../constants/design-system';
 
-const BackIcon = () => <Feather name="arrow-left" size={24} color={Colors.textDefault} />;
-
 export default function SettingsScreen() {
   const router = useRouter();
   const { income, payday, fixedExpenses, resetUser } = useUserStore();
@@ -45,10 +43,11 @@ export default function SettingsScreen() {
         {/* Header */}
         <View row spread centerV marginB-s8>
           <Button
-            iconSource={BackIcon}
             link
             onPress={() => router.back()}
-          />
+          >
+            <Feather name="arrow-left" size={24} color={Colors.textDefault} />
+          </Button>
           <Text h3 textDefault>Settings</Text>
           <View width={24} />
         </View>
