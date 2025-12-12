@@ -75,8 +75,12 @@ export const useTransactionStore = create<TransactionState>()(
                 if (!userState.payday) return;
 
                 const days = FinanceEngine.calculateDaysToPayday(userState.payday);
-                const totalFixed = userState.fixedExpenses.reduce((sum, item) => sum + item.amount, 0);
-                const safeSpend = FinanceEngine.calculateSafeSpend(state.currentBalance, totalFixed, days);
+                const safeSpend = FinanceEngine.calculateSafeSpend(
+                    state.currentBalance,
+                    userState.fixedExpenses, // Pass the array, not the total
+                    days,
+                    userState.payday
+                );
 
                 set({ safeSpendToday: safeSpend, daysToPayday: days });
             },

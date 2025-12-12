@@ -158,13 +158,13 @@ export default function OnboardingChat() {
       const response = await AIService.generateResponse(text, {
         isOnboarding: true,
         step,
-        currency: currency || 'NGN',
+        currency: currency || 'GBP',
         collectedData,
       });
       console.log('[Onboarding] AI response received:', response.text?.substring(0, 50));
 
       if (response.data) {
-        handleDataExtraction(response.data);
+        handleDataExtraction(response);
       }
 
       setKoraText(response.text);
@@ -194,11 +194,19 @@ export default function OnboardingChat() {
     }
 
     if (data.expenses && Array.isArray(data.expenses)) {
-      data.expenses.forEach((ex: any) => addFixedExpense(ex.name, ex.amount, ex.due_day));
+      // The AI already preserves all previous expenses in its response,
+      // so we REPLACE the array instead of appending to avoid duplicates
       setCollectedData(prev => ({
         ...prev,
-        expenses: [...(prev.expenses || []), ...data.expenses],
+        expenses: data.expenses,
       }));
+      
+      // Only add NEW expenses to the store (deduplicate by name)
+      const existingExpenseNames = new Set((collectedData.expenses || []).map(e => e.name.toLowerCase()));
+      const newExpenses = data.expenses.filter((ex: any) => 
+        !existingExpenseNames.has(ex.name.toLowerCase())
+      );
+      newExpenses.forEach((ex: any) => addFixedExpense(ex.name, ex.amount, ex.due_day));
     }
 
     if (data.balance) {

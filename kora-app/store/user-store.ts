@@ -17,7 +17,7 @@ interface UserState {
     currentBalance: number | null;
     savingsGoal: number | null;
     fixedExpenses: FixedExpense[];
-    currency: 'NGN' | 'GBP';
+    currency: 'NGN' | 'GBP' | null;
 
     // Actions
     completeOnboarding: () => void;
@@ -43,7 +43,7 @@ export const useUserStore = create<UserState>()(
             currentBalance: null,
             savingsGoal: null,
             fixedExpenses: [],
-            currency: 'NGN',
+            currency: null,
 
             completeOnboarding: () => set({ hasOnboarded: true }),
             setHasOnboarded: (value) => set({ hasOnboarded: value }),
@@ -66,7 +66,7 @@ export const useUserStore = create<UserState>()(
                 currentBalance: null,
                 savingsGoal: null,
                 fixedExpenses: [],
-                currency: 'NGN'
+                currency: null
             }),
         }),
         {

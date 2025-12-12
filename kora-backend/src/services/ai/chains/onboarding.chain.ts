@@ -1,14 +1,17 @@
-import { ChatMistralAI } from '@langchain/mistralai';
+import { ChatOpenAI } from '@langchain/openai';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { env } from '../../../config/env.js';
 import { createOnboardingPrompt } from '../prompts/onboarding.prompts.js';
 import type { OnboardingContext, AIResponse } from '../../../types/index.js';
 
-const llm = new ChatMistralAI({
-  model: 'mistral-small-latest',
+const llm = new ChatOpenAI({
+  model: 'gpt-4o-mini',
   temperature: 0.7,
-  apiKey: env.MISTRAL_API_KEY,
+  apiKey: env.OPENAI_API_KEY,
+  modelKwargs: {
+    response_format: { type: 'json_object' },
+  },
 });
 
 const outputParser = new JsonOutputParser();
@@ -49,12 +52,21 @@ export const processOnboarding = async (context: OnboardingContext): Promise<AIR
   const chain = createOnboardingChain();
 
   try {
+    console.log('[Onboarding] Input context:', JSON.stringify({
+      step: context.step,
+      currency: context.currency,
+      collectedData: context.collectedData,
+      userMessage: context.userMessage,
+    }, null, 2));
+
     const result = await chain.invoke({
       step: context.step,
       currency: context.currency,
       collectedData: context.collectedData,
       userMessage: context.userMessage || '',
     });
+
+    console.log('[Onboarding] AI result:', JSON.stringify(result, null, 2));
 
     return {
       text: result.response,

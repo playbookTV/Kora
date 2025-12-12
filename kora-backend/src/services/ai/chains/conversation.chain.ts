@@ -1,4 +1,4 @@
-import { ChatMistralAI } from '@langchain/mistralai';
+import { ChatOpenAI } from '@langchain/openai';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { env } from '../../../config/env.js';
@@ -8,10 +8,13 @@ import {
 } from '../prompts/conversation.prompts.js';
 import type { ConversationContext, AIResponse, ConversationIntent } from '../../../types/index.js';
 
-const llm = new ChatMistralAI({
-  model: 'mistral-small-latest',
+const llm = new ChatOpenAI({
+  model: 'gpt-4o-mini',
   temperature: 0.7,
-  apiKey: env.MISTRAL_API_KEY,
+  apiKey: env.OPENAI_API_KEY,
+  modelKwargs: {
+    response_format: { type: 'json_object' },
+  },
 });
 
 const outputParser = new JsonOutputParser();
