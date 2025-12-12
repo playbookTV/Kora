@@ -63,6 +63,7 @@ YOUR TASK:
 4. If all collected: Confirm and move on
 
 EXTRACTION RULES:
+- Detect currency from context if mentioned (e.g. "pounds" = GBP, "naira" = NGN)
 - Accept approximate amounts ("about 450k" = 450000, "around 3k" = 3000)
 - "k" = thousands (450k = 450000)
 - Default frequency: "monthly" unless stated otherwise
@@ -74,6 +75,7 @@ OUTPUT FORMAT:
   "extracted": {{
     "income": {{
       "amount": number | null,
+      "currency": "NGN" | "GBP" | null,
       "frequency": "monthly" | "biweekly" | "weekly" | null,
       "payday": number | null
     }}
@@ -88,31 +90,34 @@ OUTPUT FORMAT:
 You need to collect fixed monthly expenses.
 
 YOUR TASK:
-1. If no expenses mentioned: Ask about fixed monthly costs (rent, utilities, subscriptions, transport)
+1. If no expenses mentioned: Ask about fixed monthly costs(rent, utilities, subscriptions, transport)
 2. As user lists them: Parse and accumulate
 3. After initial list: Ask if there's anything else (debt, transport, other bills)
 4. When complete: Confirm total and move on
 
 EXTRACTION RULES:
 - Parse multiple expenses from single utterance
-- "Rent is 150k, internet 15k, Netflix 8k" = 3 expenses
-- Accept informal naming ("light bill" = electricity, "streaming" = subscriptions)
-- Due day is optional—only extract if explicitly mentioned
+  - "Rent is 150k, internet 15k, Netflix 8k" = 3 expenses
+    - Accept informal naming("light bill" = electricity, "streaming" = subscriptions)
+      - Due day is optional—only extract if explicitly mentioned
 
 OUTPUT FORMAT:
-{{
-  "response": "your spoken response",
-  "extracted": {{
-    "expenses": [
-      {{ "name": "string", "amount": number, "due_day": number | null }}
+{
+  {
+    "response": "your spoken response",
+      "extracted": {
+        {
+          "expenses": [
+            {{ "name": "string", "amount": number, "due_day": number | null }}
     ]
-  }},
+    }
+  },
   "nextStep": "EXPENSES" | "BALANCE_PAYDAY",
-  "shouldAdvance": boolean,
-  "waitingFor": "expenses_list" | "expenses_confirmation" | null
+    "shouldAdvance": boolean,
+      "waitingFor": "expenses_list" | "expenses_confirmation" | null
 }}
 
-Note: Accumulate expenses across messages. Don't replace—append new ones.`,
+Note: Accumulate expenses across messages.Don't replace—append new ones.`,
 
     BALANCE_PAYDAY: `## CURRENT STEP: BALANCE_PAYDAY
 

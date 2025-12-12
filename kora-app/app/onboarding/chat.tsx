@@ -22,7 +22,7 @@ interface CollectedData {
 
 export default function OnboardingChat() {
   const router = useRouter();
-  const { setIncome, addFixedExpense, setPayday, completeOnboarding, currency } = useUserStore();
+  const { setIncome, addFixedExpense, setPayday, completeOnboarding, currency, setCurrency } = useUserStore();
   const { setBalance, recalculateSafeSpend } = useTransactionStore();
 
   const [step, setStep] = useState<OnboardingStep>('INTRO');
@@ -177,58 +177,48 @@ export default function OnboardingChat() {
     }
   };
 
-  const handleDataExtraction = (data: any) => {
-    switch (step) {
-      case 'INCOME':
-        // LLM returns: extracted.income.amount, extracted.income.frequency, extracted.income.payday
-        if (data.income?.amount) {
-          setIncome(data.income.amount);
-          // Also extract payday if provided in this step
-          if (data.income.payday) {
-            setPayday(data.income.payday);
-          }
-          // Update collected data for context persistence
-          setCollectedData(prev => ({
-            ...prev,
-            income: {
-              amount: data.income.amount,
-              frequency: data.income.frequency || 'monthly',
-              payday: data.income.payday,
-            },
-          }));
-          setStep('EXPENSES');
-        }
-        break;
-      case 'EXPENSES':
-        // LLM returns: extracted.expenses (array)
-        if (data.expenses && Array.isArray(data.expenses)) {
-          data.expenses.forEach((ex: any) => addFixedExpense(ex.name, ex.amount, ex.due_day));
-          // Update collected data - accumulate expenses
-          setCollectedData(prev => ({
-            ...prev,
-            expenses: [...(prev.expenses || []), ...data.expenses],
-          }));
-          setStep('BALANCE_PAYDAY');
-        }
-        break;
-      case 'BALANCE_PAYDAY':
-        // LLM returns: extracted.balance, extracted.savingsGoal
-        if (data.balance) {
-          setBalance(data.balance);
-          setCollectedData(prev => ({ ...prev, balance: data.balance }));
-        }
-        if (data.savingsGoal) {
-          setCollectedData(prev => ({ ...prev, savingsGoal: data.savingsGoal }));
-        }
+  const handleDataExtraction = (response: any) => {
+    const data = response.data || {};
+    const shouldAdvance = response.shouldAdvance;
+    const nextStep = response.nextStep;
 
-        // Complete when we have balance (payday was collected in INCOME step)
-        if (data.balance && collectedData.income?.payday) {
-          setStep('COMPLETE');
-          recalculateSafeSpend();
-          completeOnboarding();
-          setTimeout(() => router.replace('/'), 3000);
-        }
-        break;
+    // Always update collected data if present
+    if (data.income) {
+      setCollectedData(prev => ({
+        ...prev,
+        income: { ...prev.income, ...data.income }
+      }));
+      if (data.income.amount) setIncome(data.income.amount);
+      if (data.income.payday) setPayday(data.income.payday);
+      if (data.income.currency) setCurrency(data.income.currency);
+    }
+
+    if (data.expenses && Array.isArray(data.expenses)) {
+      data.expenses.forEach((ex: any) => addFixedExpense(ex.name, ex.amount, ex.due_day));
+      setCollectedData(prev => ({
+        ...prev,
+        expenses: [...(prev.expenses || []), ...data.expenses],
+      }));
+    }
+
+    if (data.balance) {
+      setBalance(data.balance);
+      setCollectedData(prev => ({ ...prev, balance: data.balance }));
+    }
+    
+    if (data.savingsGoal) {
+      setCollectedData(prev => ({ ...prev, savingsGoal: data.savingsGoal }));
+    }
+
+    // Handle State Transitions
+    if (shouldAdvance && nextStep) {
+      if (nextStep === 'COMPLETE') {
+         recalculateSafeSpend();
+         completeOnboarding();
+         setTimeout(() => router.replace('/'), 3000);
+      } else {
+        setStep(nextStep as OnboardingStep);
+      }
     }
   };
 
